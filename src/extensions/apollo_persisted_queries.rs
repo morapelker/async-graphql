@@ -1,16 +1,13 @@
 //! Apollo persisted queries extension.
 
 use std::{num::NonZeroUsize, sync::Arc};
-
+use std::collections::BTreeMap;
 use async_graphql_parser::types::ExecutableDocument;
 use futures_util::lock::Mutex;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-
-use crate::{
-    extensions::{Extension, ExtensionContext, ExtensionFactory, NextPrepareRequest},
-    from_value, Request, ServerError, ServerResult,
-};
+use async_graphql_value::ConstValue;
+use crate::{extensions::{Extension, ExtensionContext, ExtensionFactory, NextPrepareRequest}, from_value, ErrorExtensionValues, Request, ServerError, ServerResult};
 
 #[derive(Deserialize)]
 struct PersistedQuery {
@@ -94,7 +91,7 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
             })?;
             if persisted_query.version != 1 {
                 return Err(ServerError::new(
-                    format!("Only the \"PersistedQuery\" extension of version \"1\" is supported, and the current version is \"{}\".", persisted_query.version), None
+                    format!("Only the \"PersistedQuery\" extension of version \"1\" is supported, and the current version is \"{}\".", persisted_query.version), None,
                 ));
             }
 
@@ -105,7 +102,11 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
                         ..request
                     })
                 } else {
-                    Err(ServerError::new("PersistedQueryNotFound", None))
+                    let mut err = ServerError::new("PersistedQueryNotFound", None);
+                    let mut extensions = BTreeMap::new();
+                    extensions.insert("code".to_string(), ConstValue::String("PERSISTED_QUERY_NOT_FOUND".to_string()));
+                    err.extensions = Some(ErrorExtensionValues(extensions));
+                    Err(err)
                 }
             } else {
                 let sha256_hash = format!("{:x}", Sha256::digest(request.query.as_bytes()));
