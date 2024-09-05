@@ -103,9 +103,9 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
                     })
                 } else {
                     let mut err = ServerError::new("PersistedQueryNotFound", None);
-                    let mut extensions = BTreeMap::new();
-                    extensions.insert("code".to_string(), ConstValue::String("PERSISTED_QUERY_NOT_FOUND".to_string()));
-                    err.extensions = Some(ErrorExtensionValues(extensions));
+                    let mut extensions = ErrorExtensionValues::default();
+                    extensions.set("code".to_string(), ConstValue::String("PERSISTED_QUERY_NOT_FOUND".to_string()));
+                    err.extensions = Some(extensions);
                     Err(err)
                 }
             } else {
