@@ -1,20 +1,20 @@
 use std::{borrow::Cow, pin::Pin};
 
 use async_graphql_derive::SimpleObject;
-use async_graphql_parser::{types::Field, Positioned};
-use futures_util::{future::BoxFuture, Future, FutureExt};
+use async_graphql_parser::{Positioned, types::Field};
+use futures_util::{Future, FutureExt, future::BoxFuture};
 use indexmap::IndexMap;
 
 use crate::{
+    Context, ContextSelectionSet, Error, IntrospectionMode, Name, SDLExportOptions, ServerError,
+    ServerResult, Value,
     dynamic::{
-        field::FieldValueInner, FieldFuture, FieldValue, Object, ObjectAccessor, ResolverContext,
-        Schema, Type, TypeRef,
+        FieldFuture, FieldValue, Object, ObjectAccessor, ResolverContext, Schema, Type, TypeRef,
+        field::FieldValueInner,
     },
     extensions::ResolveInfo,
     parser::types::Selection,
     resolver_utils::create_value_object,
-    Context, ContextSelectionSet, Error, IntrospectionMode, Name, SDLExportOptions, ServerError,
-    ServerResult, Value,
 };
 
 /// Federation service
@@ -52,29 +52,17 @@ pub(crate) async fn resolve_container(
 fn collect_typename_field<'a>(
     fields: &mut Vec<BoxFieldFuture<'a>>,
     object: &'a Object,
-    ctx: &ContextSelectionSet<'a>,
     field: &'a Positioned<Field>,
 ) {
-    if matches!(
-        ctx.schema_env.registry.introspection_mode,
-        IntrospectionMode::Enabled | IntrospectionMode::IntrospectionOnly
-    ) && matches!(
-        ctx.query_env.introspection_mode,
-        IntrospectionMode::Enabled | IntrospectionMode::IntrospectionOnly,
-    ) {
-        fields.push(
-            async move {
-                Ok((
-                    field.node.response_key().node.clone(),
-                    Value::from(object.name.as_str()),
-                ))
-            }
-            .boxed(),
-        )
-    } else {
-        fields
-            .push(async move { Ok((field.node.response_key().node.clone(), Value::Null)) }.boxed())
-    }
+    fields.push(
+        async move {
+            Ok((
+                field.node.response_key().node.clone(),
+                Value::from(object.name.as_str()),
+            ))
+        }
+        .boxed(),
+    )
 }
 
 fn collect_schema_field<'a>(
@@ -246,10 +234,10 @@ fn collect_field<'a>(
                     })
                     .collect::<ServerResult<IndexMap<Name, Value>>>()?;
                 field_def.arguments.iter().for_each(|(name, arg)| {
-                    if let Some(def) = &arg.default_value {
-                        if !args.contains_key(name.as_str()) {
-                            args.insert(Name::new(name), def.clone());
-                        }
+                    if let Some(def) = &arg.default_value
+                        && !args.contains_key(name.as_str())
+                    {
+                        args.insert(Name::new(name), def.clone());
                     }
                 });
                 args
@@ -308,7 +296,7 @@ fn collect_fields<'a>(
         match &selection.node {
             Selection::Field(field) => {
                 if field.node.name.node == "__typename" {
-                    collect_typename_field(fields, object, ctx, field);
+                    collect_typename_field(fields, object, field);
                     continue;
                 }
 

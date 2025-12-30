@@ -1,15 +1,15 @@
 use crate::{
+    CacheControl, Positioned,
     parser::types::{Field, SelectionSet},
     registry::MetaType,
     validation::visitor::{VisitMode, Visitor, VisitorContext},
-    CacheControl, Positioned,
 };
 
 pub struct CacheControlCalculate<'a> {
     pub cache_control: &'a mut CacheControl,
 }
 
-impl<'ctx, 'a> Visitor<'ctx> for CacheControlCalculate<'a> {
+impl Visitor<'_> for CacheControlCalculate<'_> {
     fn mode(&self) -> VisitMode {
         VisitMode::Inline
     }

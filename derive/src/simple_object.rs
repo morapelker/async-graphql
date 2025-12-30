@@ -3,15 +3,15 @@ use std::str::FromStr;
 use darling::ast::Data;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{ext::IdentExt, visit::Visit, Error, Ident, LifetimeParam, Path, Type};
+use syn::{Error, Ident, LifetimeParam, Path, Type, ext::IdentExt, visit::Visit};
 
 use crate::{
     args::{
         self, RenameRuleExt, RenameTarget, Resolvability, SimpleObjectField, TypeDirectiveLocation,
     },
     utils::{
-        gen_deprecation, gen_directive_calls, generate_guards, get_crate_name, get_rustdoc,
-        visible_fn, GeneratorResult,
+        GeneratorResult, gen_boxed_trait, gen_deprecation, gen_directive_calls, generate_guards,
+        get_crate_name, get_rustdoc, parse_complexity_expr, visible_fn,
     },
 };
 
@@ -30,6 +30,7 @@ struct SimpleObjectFieldGenerator<'a> {
 
 pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream> {
     let crate_name = get_crate_name(object_args.internal);
+    let boxed_trait = gen_boxed_trait(&crate_name);
     let ident = &object_args.ident;
     let (impl_generics, ty_generics, where_clause) = object_args.generics.split_for_impl();
     let extends = object_args.extends;
@@ -41,6 +42,11 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
         .tags
         .iter()
         .map(|tag| quote!(::std::string::ToString::to_string(#tag)))
+        .collect::<Vec<_>>();
+    let requires_scopes = object_args
+        .requires_scopes
+        .iter()
+        .map(|scopes| quote!(::std::string::ToString::to_string(#scopes)))
         .collect::<Vec<_>>();
     let object_directives =
         gen_directive_calls(&object_args.directives, TypeDirectiveLocation::Object);
@@ -64,9 +70,11 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
     let s = match &object_args.data {
         Data::Struct(e) => e,
         _ => {
-            return Err(
-                Error::new_spanned(ident, "SimpleObject can only be applied to an struct.").into(),
+            return Err(Error::new_spanned(
+                ident,
+                "SimpleObject can only be applied to an struct.",
             )
+            .into());
         }
     };
     let mut getters = Vec::new();
@@ -75,7 +83,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
 
     let mut processed_fields: Vec<SimpleObjectFieldGenerator> = vec![];
 
-    // Before processing the fields, we generate the derivated fields
+    // Before processing the fields, we generate the derived fields
     for field in &s.fields {
         processed_fields.push(SimpleObjectFieldGenerator {
             field,
@@ -146,6 +154,11 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             .iter()
             .map(|tag| quote!(::std::string::ToString::to_string(#tag)))
             .collect::<Vec<_>>();
+        let requires_scopes = field
+            .requires_scopes
+            .iter()
+            .map(|scopes| quote!(::std::string::ToString::to_string(#scopes)))
+            .collect::<Vec<_>>();
         let override_from = match &field.override_from {
             Some(from) => {
                 quote! { ::std::option::Option::Some(::std::string::ToString::to_string(#from)) }
@@ -186,16 +199,28 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                 field.cache_control.max_age as i32
             };
             quote! {
-                #crate_name::CacheControl {
-                    public: #public,
-                    max_age: #max_age,
+            #crate_name::CacheControl {
+                        public: #public,
+                        max_age: #max_age,
+                    }
                 }
-            }
         };
 
         let visible = visible_fn(&field.visible);
         let directives =
             gen_directive_calls(&field.directives, TypeDirectiveLocation::FieldDefinition);
+
+        let complexity = if let Some(complexity) = &field.complexity {
+            let (_, expr) = parse_complexity_expr(complexity.clone())?;
+            quote! {
+                ::std::option::Option::Some(|__ctx, __variables_definition, __field, child_complexity| {
+                    ::std::result::Result::Ok(#expr)
+                })
+            }
+        } else {
+            quote! { ::std::option::Option::None }
+        };
+
         if !field.flatten {
             schema_fields.push(quote! {
                 fields.insert(::std::borrow::ToOwned::to_owned(#field_name), #crate_name::registry::MetaField {
@@ -213,8 +238,9 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                     tags: ::std::vec![ #(#tags),* ],
                     override_from: #override_from,
                     visible: #visible,
-                    compute_complexity: ::std::option::Option::None,
+                    compute_complexity: #complexity,
                     directive_invocations: ::std::vec![ #(#directives),* ],
+                    requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                 });
             });
         } else {
@@ -377,7 +403,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             }
 
             #[allow(clippy::all, clippy::pedantic)]
-
+            #boxed_trait
             impl #impl_generics #crate_name::resolver_utils::ContainerType for #ident #ty_generics #where_clause {
                 async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                     #(#resolvers)*
@@ -387,6 +413,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
             }
 
             #[allow(clippy::all, clippy::pedantic)]
+            #boxed_trait
             impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
                 fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                     #gql_typename
@@ -414,6 +441,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                         is_subscription: false,
                         rust_typename: ::std::option::Option::Some(::std::any::type_name::<Self>()),
                         directive_invocations: ::std::vec![ #(#object_directives),* ],
+                        requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                     })
                 }
 
@@ -478,6 +506,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                         is_subscription: false,
                         rust_typename: ::std::option::Option::Some(::std::any::type_name::<Self>()),
                         directive_invocations: ::std::vec![ #(#object_directives),* ],
+                        requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                     })
                 }
 
@@ -505,6 +534,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
 
             let expanded = quote! {
                 #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
                 impl #def_bounds #crate_name::resolver_utils::ContainerType for #concrete_type {
                     async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                         #complex_resolver
@@ -513,6 +543,7 @@ pub fn generate(object_args: &args::SimpleObject) -> GeneratorResult<TokenStream
                 }
 
                 #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
                 impl #def_bounds #crate_name::OutputType for #concrete_type {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         ::std::borrow::Cow::Borrowed(#gql_typename)

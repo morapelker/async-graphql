@@ -1,9 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    parser::types::Field, registry, registry::Registry, ContextSelectionSet, InputType,
-    InputValueError, InputValueResult, OutputType, Positioned, Scalar, ScalarType, ServerResult,
-    Value,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
+    Scalar, ScalarType, ServerResult, Value, parser::types::Field, registry, registry::Registry,
 };
 
 /// The `String` scalar type represents textual data, represented as UTF-8
@@ -62,6 +61,7 @@ macro_rules! impl_input_string_for_smart_ptr {
 impl_input_string_for_smart_ptr!(Box<str>);
 impl_input_string_for_smart_ptr!(std::sync::Arc<str>);
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl OutputType for str {
     fn type_name() -> Cow<'static, str> {
         Cow::Borrowed("String")

@@ -97,6 +97,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
+## ⚠️Security
+
+I strongly recommend limiting the [complexity and depth](https://async-graphql.github.io/async-graphql/en/depth_and_complexity.html?highlight=complex#limiting-query-complexity) of queries in a production environment to avoid possible DDos attacks.
+
+- [SchemaBuilder.limit_complexity](https://docs.rs/async-graphql/latest/async_graphql/struct.SchemaBuilder.html#method.limit_complexity)
+- [SchemaBuilder.limit_depth](https://docs.rs/async-graphql/latest/async_graphql/struct.SchemaBuilder.html#method.limit_depth)
+- [SchemaBuilder.limit_directives](https://docs.rs/async-graphql/latest/async_graphql/struct.SchemaBuilder.html#method.limit_directives)
+
 ## Features
 
 - Static and dynamic schemas are fully supported
@@ -116,7 +124,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 - Apollo Tracing extension
 - Apollo Federation(v2)
 
-> **Note**: Minimum supported Rust version: 1.75.0 or later
+> **Note**: Minimum supported Rust version: 1.86.0 or later
 
 ## Examples
 
@@ -148,6 +156,7 @@ This crate offers the following features. Most are not activated by default, exc
 |:-------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`apollo_tracing`**           | Enable the [Apollo tracing extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/struct.ApolloTracing.html).                                                               |
 | **`apollo_persisted_queries`** | Enable the [Apollo persisted queries extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/apollo_persisted_queries/struct.ApolloPersistedQueries.html).                   |
+| **`boxed-trait`**              | Enables [`async-trait`](https://crates.io/crates/async-trait) for all traits.                                                                                                                 |
 | **`bson`**                     | Integrate with the [`bson` crate](https://crates.io/crates/bson).                                                                                                                             |
 | **`bigdecimal`**               | Integrate with the [`bigdecimal` crate](https://crates.io/crates/bigdecimal).                                                                                                                 |
 | **`cbor`**                     | Support for [serde_cbor](https://crates.io/crates/serde_cbor).                                                                                                                                |
@@ -177,7 +186,7 @@ This crate offers the following features. Most are not activated by default, exc
 ### Observability
 
 One of the tools used to monitor your graphql server in production is Apollo Studio. Apollo Studio is a cloud platform that helps you build, monitor, validate, and secure your organization's data graph.
-Add the extension crate [`async_graphql_apollo_studio_extension`](https://github.com/async-graphql/async_graphql_apollo_studio_extension) to make this avaliable.
+Add the extension crate [`async_graphql_apollo_studio_extension`](https://github.com/async-graphql/async_graphql_apollo_studio_extension) to make this available.
 
 ## Who's using `async-graphql` in production?
 
@@ -202,6 +211,7 @@ Add the extension crate [`async_graphql_apollo_studio_extension`](https://github
 - [Diana](https://github.com/arctic-hen7/diana) Diana is a GraphQL system for Rust that's designed to work as simply as possible out of the box, without sacrificing configuration ability.
 - [cindythink](https://www.cindythink.com/)
 - [sudograph](https://github.com/sudograph/sudograph)
+- [grpc_graphql_gateway](https://github.com/Protocol-Lattice/grpc_graphql_gateway) is an open-source protoc plugin that generates GraphQL execution server code from your gRPC/Protocol Buffers definitions.
 
 ## Blog Posts
 

@@ -6,15 +6,15 @@ use std::{
     str::FromStr,
 };
 
-use async_graphql_parser::{types::Field, Positioned};
+use async_graphql_parser::{Positioned, types::Field};
 use async_graphql_value::{from_value, to_value};
 use indexmap::IndexMap;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    registry::{MetaType, MetaTypeId, Registry},
     ContextSelectionSet, InputType, InputValueError, InputValueResult, Name, OutputType,
     ServerResult, Value,
+    registry::{MetaType, MetaTypeId, Registry},
 };
 
 impl<K, V, S> InputType for HashMap<K, V, S>
@@ -39,6 +39,8 @@ where
             inaccessible: false,
             tags: Default::default(),
             specified_by_url: None,
+            directive_invocations: Default::default(),
+            requires_scopes: Default::default(),
         })
     }
 
@@ -77,6 +79,7 @@ where
     }
 }
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl<K, V, S> OutputType for HashMap<K, V, S>
 where
     K: ToString + Eq + Hash + Send + Sync,
@@ -96,6 +99,8 @@ where
             inaccessible: false,
             tags: Default::default(),
             specified_by_url: None,
+            directive_invocations: Default::default(),
+            requires_scopes: Default::default(),
         })
     }
 

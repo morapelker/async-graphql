@@ -1,10 +1,10 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, web};
 use async_graphql::{
-    http::{playground_source, GraphQLPlaygroundConfig},
     Context, EmptyMutation, EmptySubscription, Object, ObjectType, Schema, SubscriptionType,
+    http::{GraphQLPlaygroundConfig, playground_source},
 };
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-use async_mutex::Mutex;
+use async_lock::Mutex;
 
 pub async fn gql_playgound() -> HttpResponse {
     HttpResponse::Ok()

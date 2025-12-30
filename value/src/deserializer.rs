@@ -47,7 +47,7 @@ impl From<de::value::Error> for DeserializerError {
 
 impl ConstValue {
     #[inline]
-    fn unexpected(&self) -> Unexpected {
+    fn unexpected(&self) -> Unexpected<'_> {
         match self {
             ConstValue::Null => Unexpected::Unit,
             ConstValue::Number(_) => Unexpected::Other("number"),
@@ -220,7 +220,7 @@ impl<'de> EnumAccess<'de> for EnumDeserializer {
     }
 }
 
-impl<'de> IntoDeserializer<'de, DeserializerError> for ConstValue {
+impl IntoDeserializer<'_, DeserializerError> for ConstValue {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self::Deserializer {

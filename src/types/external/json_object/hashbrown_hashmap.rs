@@ -2,15 +2,15 @@ use std::{
     borrow::Cow, collections::HashMap as StdHashMap, fmt::Display, hash::Hash, str::FromStr,
 };
 
-use async_graphql_parser::{types::Field, Positioned};
+use async_graphql_parser::{Positioned, types::Field};
 use async_graphql_value::{from_value, to_value};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    registry::Registry, ContextSelectionSet, InputType, InputValueError, InputValueResult, Name,
-    OutputType, ServerResult, Value,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, Name, OutputType,
+    ServerResult, Value, registry::Registry,
 };
 
 impl<K, V> InputType for HashMap<K, V>
@@ -64,6 +64,7 @@ where
     }
 }
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl<K, V> OutputType for HashMap<K, V>
 where
     K: ToString + Eq + Hash + Send + Sync,

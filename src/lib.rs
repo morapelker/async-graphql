@@ -63,6 +63,7 @@
 //! |:-------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 //! | **`apollo_tracing`**           | Enable the [Apollo tracing extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/struct.ApolloTracing.html).                                                               |
 //! | **`apollo_persisted_queries`** | Enable the [Apollo persisted queries extension](https://docs.rs/async-graphql/latest/async_graphql/extensions/apollo_persisted_queries/struct.ApolloPersistedQueries.html).                   |
+//! | **`boxed-trait`**              | Enables [`async-trait`](https://crates.io/crates/async-trait) for all traits.                                                                                                                 |
 //! | **`bson`**                     | Integrate with the [`bson` crate](https://crates.io/crates/bson).                                                                                                                             |
 //! | **`bigdecimal`**               | Integrate with the [`bigdecimal` crate](https://crates.io/crates/bigdecimal).                                                                                                                 |
 //! | **`cbor`**                     | Support for [serde_cbor](https://crates.io/crates/serde_cbor).                                                                                                                                |
@@ -177,6 +178,9 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(feature = "tracing")]
+extern crate tracinglib as tracing;
+
 mod base;
 mod custom_directive;
 mod error;
@@ -209,8 +213,8 @@ pub mod registry;
 
 pub use async_graphql_parser as parser;
 pub use async_graphql_value::{
-    from_value, to_value, value, ConstValue as Value, DeserializerError, Extensions, Name, Number,
-    SerializerError, Variables,
+    ConstValue as Value, DeserializerError, Extensions, Name, Number, SerializerError, Variables,
+    from_value, to_value, value,
 };
 #[doc(hidden)]
 pub use async_stream;

@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
 use darling::FromMeta;
+use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Span, TokenStream, TokenTree};
-use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 use syn::{
-    visit::Visit, visit_mut, visit_mut::VisitMut, Attribute, Error, Expr, ExprLit, ExprPath, FnArg,
-    Ident, ImplItemFn, Lifetime, Lit, LitStr, Meta, Pat, PatIdent, Type, TypeGroup, TypeParamBound,
-    TypeReference,
+    Attribute, Error, Expr, ExprLit, ExprPath, FnArg, Ident, ImplItemFn, Lifetime, Lit, LitStr,
+    Meta, Pat, PatIdent, Type, TypeGroup, TypeParamBound, TypeReference, visit::Visit, visit_mut,
+    visit_mut::VisitMut,
 };
 use thiserror::Error;
 
@@ -63,28 +63,28 @@ pub fn get_rustdoc(attrs: &[Attribute]) -> GeneratorResult<Option<TokenStream>> 
     let mut full_docs: Vec<TokenStream> = vec![];
     let mut combined_docs_literal = String::new();
     for attr in attrs {
-        if let Meta::NameValue(nv) = &attr.meta {
-            if nv.path.is_ident("doc") {
-                match &nv.value {
-                    Expr::Lit(ExprLit {
-                        lit: Lit::Str(doc), ..
-                    }) => {
-                        let doc = doc.value();
-                        let doc_str = doc.trim();
-                        combined_docs_literal += "\n";
-                        combined_docs_literal += doc_str;
-                    }
-                    Expr::Macro(include_macro) => {
-                        if !combined_docs_literal.is_empty() {
-                            combined_docs_literal += "\n";
-                            let lit = LitStr::new(&combined_docs_literal, Span::call_site());
-                            full_docs.push(quote!( #lit ));
-                            combined_docs_literal.clear();
-                        }
-                        full_docs.push(quote!( #include_macro ));
-                    }
-                    _ => (),
+        if let Meta::NameValue(nv) = &attr.meta
+            && nv.path.is_ident("doc")
+        {
+            match &nv.value {
+                Expr::Lit(ExprLit {
+                    lit: Lit::Str(doc), ..
+                }) => {
+                    let doc = doc.value();
+                    let doc_str = doc.trim();
+                    combined_docs_literal += "\n";
+                    combined_docs_literal += doc_str;
                 }
+                Expr::Macro(include_macro) => {
+                    if !combined_docs_literal.is_empty() {
+                        combined_docs_literal += "\n";
+                        let lit = LitStr::new(&combined_docs_literal, Span::call_site());
+                        full_docs.push(quote!( #lit ));
+                        combined_docs_literal.clear();
+                    }
+                    full_docs.push(quote!( #include_macro ));
+                }
+                _ => (),
             }
         }
     }
@@ -226,10 +226,10 @@ pub fn parse_complexity_expr(expr: Expr) -> GeneratorResult<(HashSet<String>, Ex
 
     impl<'a> Visit<'a> for VisitComplexityExpr {
         fn visit_expr_path(&mut self, i: &'a ExprPath) {
-            if let Some(ident) = i.path.get_ident() {
-                if ident != "child_complexity" {
-                    self.variables.insert(ident.to_string());
-                }
+            if let Some(ident) = i.path.get_ident()
+                && ident != "child_complexity"
+            {
+                self.variables.insert(ident.to_string());
             }
         }
     }
@@ -341,24 +341,42 @@ pub fn gen_directive_calls(
     directive_calls
         .iter()
         .map(|directive| {
-            let directive_name = if let Expr::Call(expr) = directive {
-                if let Expr::Path(ref expr) = *expr.func {
-                    expr.path.segments.first().map(|s| s.ident.clone())
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-            .expect(
-                "Directive invocation expression format must be <directive_name>::apply(<args>)",
+            let directive_path = extract_directive_call_path(directive).expect(
+                "Directive invocation expression format must be [<directive_path>::]<directive_name>::apply(<args>)",
             );
             let identifier = location.location_trait_identifier();
             quote!({
-                <#directive_name as async_graphql::registry::location_traits::#identifier>::check();
-                <#directive_name as async_graphql::TypeDirective>::register(&#directive_name, registry);
+                <#directive_path as async_graphql::registry::location_traits::#identifier>::check();
+                <#directive_path as async_graphql::TypeDirective>::register(&#directive_path, registry);
                 #directive
             })
         })
         .collect::<Vec<_>>()
+}
+
+fn extract_directive_call_path(directive: &Expr) -> Option<syn::Path> {
+    if let Expr::Call(expr) = directive
+        && let Expr::Path(ref expr) = *expr.func
+    {
+        let mut path = expr.path.clone();
+        if path.segments.pop()?.value().ident != "apply" {
+            return None;
+        }
+
+        path.segments.pop_punct()?;
+
+        return Some(path);
+    }
+
+    None
+}
+
+pub fn gen_boxed_trait(crate_name: &TokenStream) -> TokenStream {
+    if cfg!(feature = "boxed-trait") {
+        quote! {
+            #[#crate_name::async_trait::async_trait]
+        }
+    } else {
+        quote! {}
+    }
 }

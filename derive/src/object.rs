@@ -4,18 +4,18 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{
-    ext::IdentExt, punctuated::Punctuated, Attribute, Block, Error, Expr, FnArg, ImplItem,
-    ItemImpl, Pat, PatIdent, ReturnType, Token, Type, TypeReference,
+    Attribute, Block, Error, Expr, FnArg, ImplItem, ItemImpl, Pat, PatIdent, ReturnType, Token,
+    Type, TypeReference, ext::IdentExt, punctuated::Punctuated,
 };
 
 use crate::{
     args::{self, RenameRuleExt, RenameTarget, Resolvability, TypeDirectiveLocation},
     output_type::OutputType,
     utils::{
-        extract_input_args, gen_deprecation, gen_directive_calls, generate_default,
-        generate_guards, get_cfg_attrs, get_crate_name, get_rustdoc, get_type_path_and_name,
-        parse_complexity_expr, parse_graphql_attrs, remove_graphql_attrs, visible_fn,
-        GeneratorResult,
+        GeneratorResult, extract_input_args, gen_boxed_trait, gen_deprecation, gen_directive_calls,
+        generate_default, generate_guards, get_cfg_attrs, get_crate_name, get_rustdoc,
+        get_type_path_and_name, parse_complexity_expr, parse_graphql_attrs, remove_graphql_attrs,
+        visible_fn,
     },
     validators::Validators,
 };
@@ -25,6 +25,7 @@ pub fn generate(
     item_impl: &mut ItemImpl,
 ) -> GeneratorResult<TokenStream> {
     let crate_name = get_crate_name(object_args.internal);
+    let boxed_trait = gen_boxed_trait(&crate_name);
     let (self_ty, self_name) = get_type_path_and_name(item_impl.self_ty.as_ref())?;
     let (impl_generics, _, where_clause) = item_impl.generics.split_for_impl();
     let extends = object_args.extends;
@@ -36,6 +37,11 @@ pub fn generate(
         .tags
         .iter()
         .map(|tag| quote!(::std::string::ToString::to_string(#tag)))
+        .collect::<Vec<_>>();
+    let requires_scopes = object_args
+        .requires_scopes
+        .iter()
+        .map(|scopes| quote!(::std::string::ToString::to_string(#scopes)))
         .collect::<Vec<_>>();
     let directives = gen_directive_calls(&object_args.directives, TypeDirectiveLocation::Object);
     let gql_typename = if !object_args.name_type {
@@ -70,7 +76,7 @@ pub fn generate(
 
     let mut unresolvable_key = String::new();
 
-    // Computation of the derivated fields
+    // Computation of the derived fields
     let mut derived_impls = vec![];
     for item in &mut item_impl.items {
         if let ImplItem::Fn(method) = item {
@@ -92,23 +98,15 @@ pub fn generate(
                         syn::parse2::<ReturnType>(quote! { -> #crate_name::Result<#into> })
                             .expect("invalid result type");
 
-                    let should_create_context = new_impl
-                        .sig
-                        .inputs
-                        .iter()
-                        .nth(1)
-                        .map(|x| {
-                            if let FnArg::Typed(pat) = x {
-                                if let Type::Reference(TypeReference { elem, .. }) = &*pat.ty {
-                                    if let Type::Path(path) = elem.as_ref() {
-                                        return path.path.segments.last().unwrap().ident
-                                            != "Context";
-                                    }
-                                }
-                            };
-                            true
-                        })
-                        .unwrap_or(true);
+                    let should_create_context = new_impl.sig.inputs.iter().nth(1).is_none_or(|x| {
+                        if let FnArg::Typed(pat) = x
+                            && let Type::Reference(TypeReference { elem, .. }) = &*pat.ty
+                            && let Type::Path(path) = elem.as_ref()
+                        {
+                            return path.path.segments.last().unwrap().ident != "Context";
+                        };
+                        true
+                    });
 
                     if should_create_context {
                         let arg_ctx = syn::parse2::<FnArg>(quote! { ctx: &Context<'_> })
@@ -176,7 +174,7 @@ pub fn generate(
                             &method.sig.output,
                             "Resolver must have a return type",
                         )
-                        .into())
+                        .into());
                     }
                 };
 
@@ -297,7 +295,7 @@ pub fn generate(
                                 &method.sig.output,
                                 "Flatten resolver must have a return type",
                             )
-                            .into())
+                            .into());
                         }
                     };
                     let ty = ty.value_type();
@@ -338,6 +336,11 @@ pub fn generate(
                     .tags
                     .iter()
                     .map(|tag| quote!(::std::string::ToString::to_string(#tag)))
+                    .collect::<Vec<_>>();
+                let requires_scopes = method_args
+                    .requires_scopes
+                    .iter()
+                    .map(|scopes| quote!(::std::string::ToString::to_string(#scopes)))
                     .collect::<Vec<_>>();
 
                 unresolvable_key.push_str(&field_name);
@@ -400,6 +403,7 @@ pub fn generate(
                         inaccessible,
                         tags,
                         directives,
+                        deprecation,
                         ..
                     },
                 ) in &args
@@ -430,6 +434,7 @@ pub fn generate(
                         .iter()
                         .map(|tag| quote!(::std::string::ToString::to_string(#tag)))
                         .collect::<Vec<_>>();
+                    let deprecation = gen_deprecation(deprecation, &crate_name);
                     let directives =
                         gen_directive_calls(directives, TypeDirectiveLocation::ArgumentDefinition);
 
@@ -438,6 +443,7 @@ pub fn generate(
                                 name: ::std::string::ToString::to_string(#name),
                                 description: #desc,
                                 ty: <#ty as #crate_name::InputType>::create_type_info(registry),
+                                deprecation: #deprecation,
                                 default_value: #schema_default,
                                 visible: #visible,
                                 inaccessible: #inaccessible,
@@ -464,7 +470,7 @@ pub fn generate(
                             &method.sig.output,
                             "Resolver must have a return type",
                         )
-                        .into())
+                        .into());
                     }
                 };
                 let schema_ty = ty.value_type();
@@ -535,7 +541,8 @@ pub fn generate(
                         override_from: #override_from,
                         visible: #visible,
                         compute_complexity: #complexity,
-                        directive_invocations: ::std::vec![ #(#directives),* ]
+                        directive_invocations: ::std::vec![ #(#directives),* ],
+                        requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                     });
                 });
 
@@ -647,6 +654,7 @@ pub fn generate(
 
                 #[allow(clippy::all, clippy::pedantic, clippy::suspicious_else_formatting)]
                 #[allow(unused_braces, unused_variables, unused_parens, unused_mut)]
+                #boxed_trait
                 impl #impl_generics #crate_name::resolver_utils::ContainerType for #self_ty #where_clause {
                     async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                         #resolve_field_resolver_match
@@ -672,6 +680,7 @@ pub fn generate(
                 }
 
                 #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
                 impl #impl_generics #crate_name::OutputType for #self_ty #where_clause {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         #gql_typename
@@ -697,7 +706,8 @@ pub fn generate(
                             visible: #visible,
                             is_subscription: false,
                             rust_typename: ::std::option::Option::Some(::std::any::type_name::<Self>()),
-                            directive_invocations: ::std::vec![ #(#directives),* ]
+                            directive_invocations: ::std::vec![ #(#directives),* ],
+                            requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                         });
                         #(#create_entity_types)*
                         #(#add_keys)*
@@ -751,6 +761,7 @@ pub fn generate(
                             is_subscription: false,
                             rust_typename: ::std::option::Option::Some(::std::any::type_name::<Self>()),
                             directive_invocations: ::std::vec![ #(#directives),* ],
+                            requires_scopes: ::std::vec![],
                         });
                         #(#create_entity_types)*
                         #(#add_keys)*
@@ -802,6 +813,7 @@ pub fn generate(
             };
 
             codes.push(quote! {
+                #boxed_trait
                 impl #def_bounds #crate_name::resolver_utils::ContainerType for #concrete_type {
                     async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                         self.__internal_resolve_field(ctx).await
@@ -812,6 +824,7 @@ pub fn generate(
                     }
                 }
 
+                #boxed_trait
                 impl #def_bounds #crate_name::OutputType for #concrete_type {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         ::std::borrow::Cow::Borrowed(#gql_typename)
@@ -887,8 +900,8 @@ fn generate_fields_enum(
         }
 
         impl __FieldIdent {
-            fn from_name(name: &#crate_name::Name) -> ::std::option::Option<__FieldIdent> {
-                match name.as_str() {
+            fn from_name(__name: &#crate_name::Name) -> ::std::option::Option<__FieldIdent> {
+                match __name.as_str() {
                     #(#matches)*
                     _ => ::std::option::Option::None
                 }

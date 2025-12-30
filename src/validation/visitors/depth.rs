@@ -1,8 +1,8 @@
 use async_graphql_parser::types::Field;
 
 use crate::{
-    validation::visitor::{VisitMode, Visitor, VisitorContext},
     Positioned,
+    validation::visitor::{VisitMode, Visitor, VisitorContext},
 };
 
 pub struct DepthCalculate<'a> {
@@ -19,7 +19,7 @@ impl<'a> DepthCalculate<'a> {
     }
 }
 
-impl<'ctx, 'a> Visitor<'ctx> for DepthCalculate<'a> {
+impl<'ctx> Visitor<'ctx> for DepthCalculate<'_> {
     fn mode(&self) -> VisitMode {
         VisitMode::Inline
     }
@@ -39,7 +39,7 @@ impl<'ctx, 'a> Visitor<'ctx> for DepthCalculate<'a> {
 mod tests {
     use super::*;
     use crate::{
-        parser::parse_query, validation::visit, EmptyMutation, EmptySubscription, Object, Schema,
+        EmptyMutation, EmptySubscription, Object, Schema, parser::parse_query, validation::visit,
     };
 
     struct Query;
@@ -123,13 +123,13 @@ mod tests {
         fragment A on MyObj {
             a b ... A2 #2
         }
-        
+
         fragment A2 on MyObj {
             obj {
                 a #3
             }
         }
-            
+
         query {
             obj { # 1
                 ... A
@@ -143,7 +143,7 @@ mod tests {
         {
             obj { # 1
                 ... on MyObj {
-                    a b #2 
+                    a b #2
                     ... on MyObj {
                         obj {
                             a #3

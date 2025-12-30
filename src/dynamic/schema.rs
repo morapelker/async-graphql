@@ -1,20 +1,20 @@
 use std::{any::Any, collections::HashMap, fmt::Debug, sync::Arc};
 
 use async_graphql_parser::types::OperationType;
-use futures_util::{stream::BoxStream, Stream, StreamExt, TryFutureExt};
+use futures_util::{Stream, StreamExt, TryFutureExt, stream::BoxStream};
 use indexmap::IndexMap;
 
 use crate::{
+    Data, Executor, IntrospectionMode, QueryEnv, Request, Response, SDLExportOptions, SchemaEnv,
+    ServerError, ServerResult, ValidationMode,
     dynamic::{
-        field::BoxResolverFn, r#type::Type, resolve::resolve_container, DynamicRequest,
-        FieldFuture, FieldValue, Object, ResolverContext, Scalar, SchemaError, Subscription,
-        TypeRef, Union,
+        DynamicRequest, FieldFuture, FieldValue, Object, ResolverContext, Scalar, SchemaError,
+        Subscription, TypeRef, Union, field::BoxResolverFn, resolve::resolve_container,
+        r#type::Type,
     },
     extensions::{ExtensionFactory, Extensions},
     registry::{MetaType, Registry},
-    schema::{prepare_request, SchemaEnvInner},
-    Data, Executor, IntrospectionMode, QueryEnv, Request, Response, SDLExportOptions, SchemaEnv,
-    ServerError, ServerResult, ValidationMode,
+    schema::{SchemaEnvInner, prepare_request},
 };
 
 /// Dynamic schema builder
@@ -27,6 +27,7 @@ pub struct SchemaBuilder {
     extensions: Vec<Box<dyn ExtensionFactory>>,
     validation_mode: ValidationMode,
     recursive_depth: usize,
+    max_directives: Option<usize>,
     complexity: Option<usize>,
     depth: Option<usize>,
     enable_suggestions: bool,
@@ -87,6 +88,13 @@ impl SchemaBuilder {
     #[must_use]
     pub fn limit_recursive_depth(mut self, depth: usize) -> Self {
         self.recursive_depth = depth;
+        self
+    }
+
+    /// Set the maximum number of directives on a single field. (default: no
+    /// limit)
+    pub fn limit_directives(mut self, max_directives: usize) -> Self {
+        self.max_directives = Some(max_directives);
         self
     }
 
@@ -204,6 +212,7 @@ impl SchemaBuilder {
             extensions: self.extensions,
             types: self.types,
             recursive_depth: self.recursive_depth,
+            max_directives: self.max_directives,
             complexity: self.complexity,
             depth: self.depth,
             validation_mode: self.validation_mode,
@@ -231,6 +240,7 @@ pub struct SchemaInner {
     pub(crate) types: IndexMap<String, Type>,
     extensions: Vec<Box<dyn ExtensionFactory>>,
     recursive_depth: usize,
+    max_directives: Option<usize>,
     complexity: Option<usize>,
     depth: Option<usize>,
     validation_mode: ValidationMode,
@@ -249,6 +259,7 @@ impl Schema {
             extensions: Default::default(),
             validation_mode: ValidationMode::Strict,
             recursive_depth: 32,
+            max_directives: None,
             complexity: None,
             depth: None,
             enable_suggestions: true,
@@ -365,6 +376,7 @@ impl Schema {
                     &self.0.env.registry,
                     self.0.validation_mode,
                     self.0.recursive_depth,
+                    self.0.max_directives,
                     self.0.complexity,
                     self.0.depth,
                 )
@@ -398,7 +410,7 @@ impl Schema {
         &self,
         request: impl Into<DynamicRequest>,
         session_data: Arc<Data>,
-    ) -> impl Stream<Item = Response> + Send + Unpin {
+    ) -> impl Stream<Item = Response> + Send + Unpin + 'static {
         let schema = self.clone();
         let request = request.into();
         let extensions = self.create_extensions(session_data.clone());
@@ -422,6 +434,7 @@ impl Schema {
                     &schema.0.env.registry,
                     schema.0.validation_mode,
                     schema.0.recursive_depth,
+                    schema.0.max_directives,
                     schema.0.complexity,
                     schema.0.depth,
                 )
@@ -470,6 +483,7 @@ impl Schema {
     }
 }
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl Executor for Schema {
     async fn execute(&self, request: Request) -> Response {
         Schema::execute(self, request).await
@@ -491,7 +505,7 @@ fn update_interface_possible_types(types: &mut IndexMap<String, Type>, registry:
         .values_mut()
         .filter_map(|ty| match ty {
             MetaType::Interface {
-                ref name,
+                name,
                 possible_types,
                 ..
             } => Some((name, possible_types)),
@@ -517,14 +531,14 @@ fn update_interface_possible_types(types: &mut IndexMap<String, Type>, registry:
 mod tests {
     use std::sync::Arc;
 
-    use async_graphql_parser::{types::ExecutableDocument, Pos};
+    use async_graphql_parser::{Pos, types::ExecutableDocument};
     use async_graphql_value::Variables;
-    use futures_util::{stream::BoxStream, StreamExt};
+    use futures_util::{StreamExt, stream::BoxStream};
     use tokio::sync::Mutex;
 
     use crate::{
-        dynamic::*, extensions::*, value, PathSegment, Request, Response, ServerError,
-        ServerResult, ValidationResult, Value,
+        PathSegment, Request, Response, ServerError, ServerResult, ValidationResult, Value,
+        dynamic::*, extensions::*, value,
     };
 
     #[tokio::test]

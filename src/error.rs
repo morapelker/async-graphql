@@ -9,7 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{parser, InputType, Pos, Value};
+use crate::{InputType, Pos, Value, parser};
 
 /// Extensions to the error.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -53,7 +53,7 @@ pub struct ServerError {
 }
 
 fn error_extensions_is_empty(values: &Option<ErrorExtensionValues>) -> bool {
-    values.as_ref().map_or(true, |values| values.0.is_empty())
+    values.as_ref().is_none_or(|values| values.0.is_empty())
 }
 
 impl Debug for ServerError {
@@ -102,10 +102,7 @@ impl ServerError {
     /// #[Object]
     /// impl Query {
     ///     async fn value(&self) -> Result<i32> {
-    ///         Err(Error::new_with_source(std::io::Error::new(
-    ///             ErrorKind::Other,
-    ///             "my error",
-    ///         )))
+    ///         Err(Error::new_with_source(std::io::Error::other("my error")))
     ///     }
     /// }
     ///
@@ -319,10 +316,33 @@ impl Error {
     }
 }
 
-impl<T: Display + Send + Sync> From<T> for Error {
+#[cfg(not(feature = "custom-error-conversion"))]
+impl<T: Display + Send + Sync + 'static> From<T> for Error {
     fn from(e: T) -> Self {
         Self {
             message: e.to_string(),
+            source: Some(Arc::new(e)),
+            extensions: None,
+        }
+    }
+}
+
+#[cfg(feature = "custom-error-conversion")]
+impl From<&'static str> for Error {
+    fn from(e: &'static str) -> Self {
+        Self {
+            message: e.to_string(),
+            source: None,
+            extensions: None,
+        }
+    }
+}
+
+#[cfg(feature = "custom-error-conversion")]
+impl From<String> for Error {
+    fn from(e: String) -> Self {
+        Self {
+            message: e,
             source: None,
             extensions: None,
         }

@@ -2,9 +2,9 @@ use std::fmt::{self, Formatter};
 
 use indexmap::IndexMap;
 use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
     de::{Error as DeError, MapAccess, SeqAccess, Visitor},
     ser::SerializeMap,
-    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 use crate::{ConstValue, Name, Number, Value};
@@ -28,12 +28,11 @@ impl Serialize for ConstValue {
             ConstValue::List(v) => v.serialize(serializer),
             ConstValue::Object(v) => {
                 #[cfg(feature = "raw_value")]
-                if v.len() == 1 {
-                    if let Some(ConstValue::String(v)) = v.get(RAW_VALUE_TOKEN) {
-                        if let Ok(v) = serde_json::value::RawValue::from_string(v.clone()) {
-                            return v.serialize(serializer);
-                        }
-                    }
+                if v.len() == 1
+                    && let Some(ConstValue::String(v)) = v.get(RAW_VALUE_TOKEN)
+                    && let Ok(v) = serde_json::value::RawValue::from_string(v.clone())
+                {
+                    return v.serialize(serializer);
                 }
                 v.serialize(serializer)
             }

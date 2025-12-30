@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    parser::types::Field, registry, resolver_utils::resolve_list, ContextSelectionSet, InputType,
-    InputValueError, InputValueResult, OutputType, Positioned, Result, ServerResult, Value,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
+    Result, ServerResult, Value, parser::types::Field, registry, resolver_utils::resolve_list,
 };
 
 impl<T: InputType> InputType for Vec<T> {
@@ -29,7 +29,7 @@ impl<T: InputType> InputType for Vec<T> {
                 .collect::<Result<_, _>>()
                 .map_err(InputValueError::propagate),
             value => Ok(vec![
-                InputType::parse(Some(value)).map_err(InputValueError::propagate)?
+                InputType::parse(Some(value)).map_err(InputValueError::propagate)?,
             ]),
         }
     }
@@ -43,6 +43,7 @@ impl<T: InputType> InputType for Vec<T> {
     }
 }
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl<T: OutputType> OutputType for Vec<T> {
     fn type_name() -> Cow<'static, str> {
         Cow::Owned(format!("[{}]", T::qualified_type_name()))

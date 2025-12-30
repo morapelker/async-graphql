@@ -6,8 +6,12 @@ use async_graphql_parser::types::ExecutableDocument;
 use futures_util::lock::Mutex;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use async_graphql_value::ConstValue;
-use crate::{extensions::{Extension, ExtensionContext, ExtensionFactory, NextPrepareRequest}, from_value, ErrorExtensionValues, Request, ServerError, ServerResult};
+
+use crate::{
+    Request, ServerError, ServerResult,
+    extensions::{Extension, ExtensionContext, ExtensionFactory, NextPrepareRequest},
+    from_value,
+};
 
 #[derive(Deserialize)]
 struct PersistedQuery {
@@ -91,7 +95,11 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
             })?;
             if persisted_query.version != 1 {
                 return Err(ServerError::new(
-                    format!("Only the \"PersistedQuery\" extension of version \"1\" is supported, and the current version is \"{}\".", persisted_query.version), None,
+                    format!(
+                        "Only the \"PersistedQuery\" extension of version \"1\" is supported, and the current version is \"{}\".",
+                        persisted_query.version
+                    ),
+                    None,
                 ));
             }
 

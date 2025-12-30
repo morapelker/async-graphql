@@ -11,9 +11,9 @@ use std::{
 
 use futures_timer::Delay;
 use futures_util::{
+    FutureExt, StreamExt,
     future::{BoxFuture, Ready},
     stream::Stream,
-    FutureExt, StreamExt,
 };
 use pin_project_lite::pin_project;
 use serde::{Deserialize, Serialize};
@@ -296,24 +296,24 @@ where
             return Poll::Ready(None);
         }
 
-        if let Some(keepalive_timer) = this.keepalive_timer {
-            if let Poll::Ready(Some(())) = keepalive_timer.poll_next_unpin(cx) {
-                return match this.protocol {
-                    Protocols::SubscriptionsTransportWS => {
-                        *this.close = true;
-                        Poll::Ready(Some(WsMessage::Text(
-                            serde_json::to_string(&ServerMessage::ConnectionError {
-                                payload: Error::new("timeout"),
-                            })
-                            .unwrap(),
-                        )))
-                    }
-                    Protocols::GraphQLWS => {
-                        *this.close = true;
-                        Poll::Ready(Some(WsMessage::Close(3008, "timeout".to_string())))
-                    }
-                };
-            }
+        if let Some(keepalive_timer) = this.keepalive_timer
+            && let Poll::Ready(Some(())) = keepalive_timer.poll_next_unpin(cx)
+        {
+            return match this.protocol {
+                Protocols::SubscriptionsTransportWS => {
+                    *this.close = true;
+                    Poll::Ready(Some(WsMessage::Text(
+                        serde_json::to_string(&ServerMessage::ConnectionError {
+                            payload: Error::new("timeout"),
+                        })
+                        .unwrap(),
+                    )))
+                }
+                Protocols::GraphQLWS => {
+                    *this.close = true;
+                    Poll::Ready(Some(WsMessage::Close(3008, "timeout".to_string())))
+                }
+            };
         }
 
         if this.init_fut.is_none() && this.ping_fut.is_none() {

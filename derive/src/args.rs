@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 
 use darling::{
+    FromDeriveInput, FromField, FromMeta, FromVariant,
     ast::{Data, Fields, NestedMeta},
     util::{Ignored, SpannedValue},
-    FromDeriveInput, FromField, FromMeta, FromVariant,
 };
-use inflector::Inflector;
+use heck::{ToLowerCamelCase, ToPascalCase, ToShoutySnakeCase, ToSnakeCase};
 use quote::format_ident;
 use syn::{
     Attribute, Expr, GenericParam, Generics, Ident, Lit, LitBool, LitStr, Meta, Path, Type,
@@ -117,6 +117,8 @@ impl FromMeta for GenericParamList {
 #[derive(FromMeta)]
 pub struct ConcreteType {
     pub name: String,
+    #[darling(default)]
+    pub input_name: Option<String>,
     pub params: PathList,
     #[darling(default)]
     pub bounds: GenericParamList,
@@ -232,6 +234,9 @@ pub struct SimpleObjectField {
     pub secret: bool,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    pub complexity: Option<Expr>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromDeriveInput)]
@@ -283,6 +288,8 @@ pub struct SimpleObject {
     pub guard: Option<Expr>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromMeta, Default)]
@@ -303,6 +310,7 @@ pub struct Argument {
     pub secret: bool,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    pub deprecation: Deprecation,
 }
 
 #[derive(FromMeta, Default)]
@@ -331,6 +339,8 @@ pub struct Object {
     pub guard: Option<Expr>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromMeta, Default)]
@@ -357,6 +367,8 @@ pub struct ObjectField {
     pub flatten: bool,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromMeta, Default, Clone)]
@@ -398,6 +410,8 @@ pub struct Enum {
     pub tags: Vec<String>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromVariant)]
@@ -499,6 +513,8 @@ pub struct InputObjectField {
     pub shareable: bool,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default)]
+    pub deprecation: Deprecation,
 }
 
 #[derive(FromDeriveInput)]
@@ -559,6 +575,8 @@ pub struct OneofObjectField {
     pub secret: bool,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default)]
+    pub deprecation: Deprecation,
 }
 
 #[derive(FromDeriveInput)]
@@ -614,6 +632,8 @@ pub struct InterfaceFieldArgument {
     pub secret: bool,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default)]
+    pub deprecation: Deprecation,
 }
 
 #[derive(FromMeta)]
@@ -646,6 +666,8 @@ pub struct InterfaceField {
     pub override_from: Option<String>,
     #[darling(default, multiple, rename = "directive")]
     pub directives: Vec<Expr>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromVariant)]
@@ -687,6 +709,8 @@ pub struct Interface {
     // for OneofObject
     #[darling(default)]
     pub input_name: Option<String>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromMeta, Default)]
@@ -702,6 +726,8 @@ pub struct Scalar {
     #[darling(multiple, rename = "tag")]
     pub tags: Vec<String>,
     pub specified_by_url: Option<String>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromMeta, Default)]
@@ -734,6 +760,7 @@ pub struct SubscriptionFieldArgument {
     pub process_with: Option<Expr>,
     pub visible: Option<Visible>,
     pub secret: bool,
+    pub deprecation: Deprecation,
 }
 
 #[derive(FromMeta, Default)]
@@ -835,9 +862,9 @@ impl RenameRule {
             Self::Lower => name.as_ref().to_lowercase(),
             Self::Upper => name.as_ref().to_uppercase(),
             Self::Pascal => name.as_ref().to_pascal_case(),
-            Self::Camel => name.as_ref().to_camel_case(),
+            Self::Camel => name.as_ref().to_lower_camel_case(),
             Self::Snake => name.as_ref().to_snake_case(),
-            Self::ScreamingSnake => name.as_ref().to_screaming_snake_case(),
+            Self::ScreamingSnake => name.as_ref().to_shouty_snake_case(),
         }
     }
 }
@@ -886,17 +913,12 @@ pub struct Description {
     pub internal: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum NewTypeName {
     New(String),
     Rust,
+    #[default]
     Original,
-}
-
-impl Default for NewTypeName {
-    fn default() -> Self {
-        Self::Original
-    }
 }
 
 impl FromMeta for NewTypeName {
@@ -969,6 +991,10 @@ pub struct ComplexObjectField {
     #[darling(multiple)]
     pub derived: Vec<DerivedField>,
     pub flatten: bool,
+    #[darling(default, multiple, rename = "directive")]
+    pub directives: Vec<Expr>,
+    #[darling(default, multiple)]
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(FromMeta, Default)]

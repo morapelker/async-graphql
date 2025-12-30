@@ -12,18 +12,18 @@ use async_graphql_parser::types::ConstDirective;
 use async_graphql_value::{Value as InputValue, Variables};
 use fnv::FnvHashMap;
 use serde::{
-    ser::{SerializeSeq, Serializer},
     Serialize,
+    ser::{SerializeSeq, Serializer},
 };
 
 use crate::{
+    Error, InputType, Lookahead, Name, OneofObjectType, PathSegment, Pos, Positioned, Result,
+    ServerError, ServerResult, UploadValue, Value,
     extensions::Extensions,
     parser::types::{
         Directive, Field, FragmentDefinition, OperationDefinition, Selection, SelectionSet,
     },
     schema::{IntrospectionMode, SchemaEnv},
-    Error, InputType, Lookahead, Name, OneofObjectType, PathSegment, Pos, Positioned, Result,
-    ServerError, ServerResult, UploadValue, Value,
 };
 
 /// Data related functions of the context.
@@ -115,7 +115,7 @@ pub struct QueryPathNode<'a> {
     pub segment: QueryPathSegment<'a>,
 }
 
-impl<'a> serde::Serialize for QueryPathNode<'a> {
+impl serde::Serialize for QueryPathNode<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut seq = serializer.serialize_seq(None)?;
         self.try_for_each(|segment| seq.serialize_element(segment))?;
@@ -123,7 +123,7 @@ impl<'a> serde::Serialize for QueryPathNode<'a> {
     }
 }
 
-impl<'a> Display for QueryPathNode<'a> {
+impl Display for QueryPathNode<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut first = true;
         self.try_for_each(|segment| {
@@ -224,7 +224,7 @@ impl<'a> Iterator for Parents<'a> {
     }
 }
 
-impl<'a> std::iter::FusedIterator for Parents<'a> {}
+impl std::iter::FusedIterator for Parents<'_> {}
 
 /// Query context.
 ///
@@ -456,7 +456,7 @@ impl<'a, T> ContextBase<'a, T> {
     /// # Examples
     ///
     /// ```no_run
-    /// use ::http::{header::ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue};
+    /// use ::http::{HeaderValue, header::ACCESS_CONTROL_ALLOW_ORIGIN};
     /// use async_graphql::*;
     ///
     /// struct Query;
@@ -587,10 +587,10 @@ impl<'a, T> ContextBase<'a, T> {
             .find(|(n, _)| n.node.as_str() == name)
             .map(|(_, value)| value)
             .cloned();
-        if value.is_none() {
-            if let Some(default) = default {
-                return Ok((Pos::default(), default()));
-            }
+        if value.is_none()
+            && let Some(default) = default
+        {
+            return Ok((Pos::default(), default()));
         }
         let (pos, value) = match value {
             Some(value) => (value.pos, Some(self.resolve_input_value(value)?)),
@@ -683,7 +683,7 @@ impl<'a> ContextBase<'a, &'a Positioned<Field>> {
     ///     }
     /// }
     /// ```
-    pub fn look_ahead(&self) -> Lookahead {
+    pub fn look_ahead(&self) -> Lookahead<'_> {
         Lookahead::new(&self.query_env.fragments, &self.item.node, self)
     }
 
@@ -720,13 +720,15 @@ impl<'a> ContextBase<'a, &'a Positioned<Field>> {
     /// let schema = Schema::new(Query, EmptyMutation, EmptySubscription);
     /// assert!(schema.execute("{ obj { a b c }}").await.is_ok());
     /// assert!(schema.execute("{ obj { a ... { b c } }}").await.is_ok());
-    /// assert!(schema
-    ///     .execute("{ obj { a ... BC }} fragment BC on MyObj { b c }")
-    ///     .await
-    ///     .is_ok());
+    /// assert!(
+    ///     schema
+    ///         .execute("{ obj { a ... BC }} fragment BC on MyObj { b c }")
+    ///         .await
+    ///         .is_ok()
+    /// );
     /// # });
     /// ```
-    pub fn field(&self) -> SelectionField {
+    pub fn field(&self) -> SelectionField<'_> {
         SelectionField {
             fragments: &self.query_env.fragments,
             field: &self.item.node,
@@ -823,11 +825,11 @@ impl<'a> SelectionField<'a> {
     }
 }
 
-impl<'a> Debug for SelectionField<'a> {
+impl Debug for SelectionField<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         struct DebugSelectionSet<'a>(Vec<SelectionField<'a>>);
 
-        impl<'a> Debug for DebugSelectionSet<'a> {
+        impl Debug for DebugSelectionSet<'_> {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
                 f.debug_list().entries(&self.0).finish()
             }

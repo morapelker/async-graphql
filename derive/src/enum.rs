@@ -1,18 +1,19 @@
 use darling::ast::Data;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{ext::IdentExt, Error};
+use syn::{Error, ext::IdentExt};
 
 use crate::{
     args::{self, RenameRuleExt, RenameTarget, TypeDirectiveLocation},
     utils::{
-        gen_deprecation, gen_directive_calls, get_crate_name, get_rustdoc, visible_fn,
-        GeneratorResult,
+        GeneratorResult, gen_boxed_trait, gen_deprecation, gen_directive_calls, get_crate_name,
+        get_rustdoc, visible_fn,
     },
 };
 
 pub fn generate(enum_args: &args::Enum) -> GeneratorResult<TokenStream> {
     let crate_name = get_crate_name(enum_args.internal);
+    let boxed_trait = gen_boxed_trait(&crate_name);
     let ident = &enum_args.ident;
     let e = match &enum_args.data {
         Data::Enum(e) => e,
@@ -34,6 +35,11 @@ pub fn generate(enum_args: &args::Enum) -> GeneratorResult<TokenStream> {
         .tags
         .iter()
         .map(|tag| quote!(::std::string::ToString::to_string(#tag)))
+        .collect::<Vec<_>>();
+    let requires_scopes = enum_args
+        .requires_scopes
+        .iter()
+        .map(|scopes| quote!(::std::string::ToString::to_string(#scopes)))
         .collect::<Vec<_>>();
     let directives = gen_directive_calls(&enum_args.directives, TypeDirectiveLocation::Enum);
     let desc = get_rustdoc(&enum_args.attrs)?
@@ -186,7 +192,8 @@ pub fn generate(enum_args: &args::Enum) -> GeneratorResult<TokenStream> {
                         inaccessible: #inaccessible,
                         tags: ::std::vec![ #(#tags),* ],
                         rust_typename: ::std::option::Option::Some(::std::any::type_name::<Self>()),
-                        directive_invocations: ::std::vec![ #(#directives),* ]
+                        directive_invocations: ::std::vec![ #(#directives),* ],
+                        requires_scopes: ::std::vec![ #(#requires_scopes),* ],
                     }
                 })
             }
@@ -217,6 +224,7 @@ pub fn generate(enum_args: &args::Enum) -> GeneratorResult<TokenStream> {
             }
         }
 
+        #boxed_trait
         impl #crate_name::OutputType for #ident {
             fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                 Self::__type_name()

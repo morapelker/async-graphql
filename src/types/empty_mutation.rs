@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    parser::types::Field, registry, registry::MetaTypeId, resolver_utils::ContainerType, Context,
-    ContextSelectionSet, ObjectType, OutputType, Positioned, ServerError, ServerResult, Value,
+    Context, ContextSelectionSet, ObjectType, OutputType, Positioned, ServerError, ServerResult,
+    Value, parser::types::Field, registry, registry::MetaTypeId, resolver_utils::ContainerType,
 };
 
 /// Empty mutation
@@ -30,6 +30,7 @@ use crate::{
 #[derive(Default, Copy, Clone)]
 pub struct EmptyMutation;
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl ContainerType for EmptyMutation {
     fn is_empty() -> bool {
         true
@@ -40,6 +41,7 @@ impl ContainerType for EmptyMutation {
     }
 }
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl OutputType for EmptyMutation {
     fn type_name() -> Cow<'static, str> {
         Cow::Borrowed("EmptyMutation")
@@ -62,6 +64,7 @@ impl OutputType for EmptyMutation {
             is_subscription: false,
             rust_typename: Some(std::any::type_name::<Self>()),
             directive_invocations: Default::default(),
+            requires_scopes: Default::default(),
         })
     }
 

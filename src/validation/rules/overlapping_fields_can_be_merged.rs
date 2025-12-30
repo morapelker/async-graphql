@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
+    Positioned,
     parser::types::{Field, Selection, SelectionSet},
     validation::visitor::{Visitor, VisitorContext},
-    Positioned,
 };
 
 #[derive(Default)]
@@ -30,7 +30,7 @@ struct FindConflicts<'a, 'ctx> {
     ctx: &'a mut VisitorContext<'ctx>,
 }
 
-impl<'a, 'ctx> FindConflicts<'a, 'ctx> {
+impl<'a> FindConflicts<'a, '_> {
     pub fn find(&mut self, on_type: Option<&'a str>, selection_set: &'a Positioned<SelectionSet>) {
         for selection in &selection_set.node.items {
             match &selection.node {

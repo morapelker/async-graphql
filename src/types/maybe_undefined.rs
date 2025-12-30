@@ -2,7 +2,7 @@ use std::{borrow::Cow, ops::Deref};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{registry, InputType, InputValueError, InputValueResult, Value};
+use crate::{InputType, InputValueError, InputValueResult, Value, registry};
 
 /// Similar to `Option`, but it has three states, `undefined`, `null` and `x`.
 ///
@@ -47,17 +47,12 @@ use crate::{registry, InputType, InputValueError, InputValueResult, Value};
 /// # });
 /// ```
 #[allow(missing_docs)]
-#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+#[derive(Copy, Clone, Default, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub enum MaybeUndefined<T> {
+    #[default]
     Undefined,
     Null,
     Value(T),
-}
-
-impl<T> Default for MaybeUndefined<T> {
-    fn default() -> Self {
-        Self::Undefined
-    }
 }
 
 impl<T> MaybeUndefined<T> {

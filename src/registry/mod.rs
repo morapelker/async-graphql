@@ -14,11 +14,11 @@ use indexmap::{map::IndexMap, set::IndexSet};
 
 pub use crate::model::{__DirectiveLocation, location_traits};
 use crate::{
+    Any, Context, ID, InputType, OutputType, Positioned, ServerResult, SubscriptionType, Value,
+    VisitorContext,
     model::__Schema,
     parser::types::{BaseType as ParsedBaseType, Field, Type as ParsedType, VariableDefinition},
     schema::IntrospectionMode,
-    Any, Context, InputType, OutputType, Positioned, ServerResult, SubscriptionType, Value,
-    VisitorContext, ID,
 };
 
 fn strip_brackets(type_name: &str) -> Option<&str> {
@@ -34,7 +34,7 @@ pub enum MetaTypeName<'a> {
     Named(&'a str),
 }
 
-impl<'a> Display for MetaTypeName<'a> {
+impl Display for MetaTypeName<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             MetaTypeName::Named(name) => write!(f, "{}", name),
@@ -44,9 +44,9 @@ impl<'a> Display for MetaTypeName<'a> {
     }
 }
 
-impl<'a> MetaTypeName<'a> {
+impl MetaTypeName<'_> {
     #[inline]
-    pub fn create(type_name: &str) -> MetaTypeName {
+    pub fn create(type_name: &str) -> MetaTypeName<'_> {
         if let Some(type_name) = type_name.strip_suffix('!') {
             MetaTypeName::NonNull(type_name)
         } else if let Some(type_name) = strip_brackets(type_name) {
@@ -142,6 +142,8 @@ pub struct MetaInputValue {
     pub description: Option<String>,
     /// The type of the input value
     pub ty: String,
+    /// Field deprecation
+    pub deprecation: Deprecation,
     /// The default value of the input value
     pub default_value: Option<String>,
     /// A function that uses to check if the input value should be exported to
@@ -153,7 +155,7 @@ pub struct MetaInputValue {
     /// Arbitrary string metadata that will be propagated to the supergraph when
     /// using Apollo Federation. This attribute is repeatable
     pub tags: Vec<String>,
-    /// Indicate that an input obnject is secret
+    /// Indicate that an input object is secret
     pub is_secret: bool,
     /// Custom directive invocations
     pub directive_invocations: Vec<MetaDirectiveInvocation>,
@@ -236,6 +238,10 @@ pub struct MetaField {
     pub compute_complexity: Option<ComputeComplexityFn>,
     /// Custom directive invocations
     pub directive_invocations: Vec<MetaDirectiveInvocation>,
+    /// Indicates to composition that the target element is accessible only to
+    /// the authenticated supergraph users with the appropriate JWT scopes
+    /// when using Apollo Federation.
+    pub requires_scopes: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -272,6 +278,8 @@ impl MetaTypeId {
                 inaccessible: false,
                 tags: vec![],
                 specified_by_url: None,
+                directive_invocations: vec![],
+                requires_scopes: vec![],
             },
             MetaTypeId::Object => MetaType::Object {
                 name: "".to_string(),
@@ -289,6 +297,7 @@ impl MetaTypeId {
                 is_subscription: false,
                 rust_typename: Some(rust_typename),
                 directive_invocations: vec![],
+                requires_scopes: vec![],
             },
             MetaTypeId::Interface => MetaType::Interface {
                 name: "".to_string(),
@@ -302,6 +311,7 @@ impl MetaTypeId {
                 visible: None,
                 rust_typename: Some(rust_typename),
                 directive_invocations: vec![],
+                requires_scopes: vec![],
             },
             MetaTypeId::Union => MetaType::Union {
                 name: "".to_string(),
@@ -311,6 +321,7 @@ impl MetaTypeId {
                 inaccessible: false,
                 tags: vec![],
                 rust_typename: Some(rust_typename),
+                directive_invocations: vec![],
             },
             MetaTypeId::Enum => MetaType::Enum {
                 name: "".to_string(),
@@ -321,6 +332,7 @@ impl MetaTypeId {
                 tags: vec![],
                 rust_typename: Some(rust_typename),
                 directive_invocations: vec![],
+                requires_scopes: vec![],
             },
             MetaTypeId::InputObject => MetaType::InputObject {
                 name: "".to_string(),
@@ -383,6 +395,12 @@ pub enum MetaType {
         /// human-readable specification of the data format, serialization and
         /// coercion rules for this scalar.
         specified_by_url: Option<String>,
+        /// custom directive invocations
+        directive_invocations: Vec<MetaDirectiveInvocation>,
+        /// Indicates to composition that the target element is accessible only
+        /// to the authenticated supergraph users with the appropriate
+        /// JWT scopes when using Apollo Federation.
+        requires_scopes: Vec<String>,
     },
     /// Object
     ///
@@ -448,6 +466,10 @@ pub enum MetaType {
         rust_typename: Option<&'static str>,
         /// custom directive invocations
         directive_invocations: Vec<MetaDirectiveInvocation>,
+        /// Indicates to composition that the target element is accessible only
+        /// to the authenticated supergraph users with the appropriate
+        /// JWT scopes when using Apollo Federation.
+        requires_scopes: Vec<String>,
     },
     /// Interface
     ///
@@ -492,6 +514,10 @@ pub enum MetaType {
         rust_typename: Option<&'static str>,
         /// custom directive invocations
         directive_invocations: Vec<MetaDirectiveInvocation>,
+        /// Indicates to composition that the target element is accessible only
+        /// to the authenticated supergraph users with the appropriate
+        /// JWT scopes when using Apollo Federation.
+        requires_scopes: Vec<String>,
     },
     /// Union
     ///
@@ -518,6 +544,8 @@ pub enum MetaType {
         tags: Vec<String>,
         /// The Rust typename corresponding to the union
         rust_typename: Option<&'static str>,
+        /// custom directive invocations
+        directive_invocations: Vec<MetaDirectiveInvocation>,
     },
     /// Enum
     ///
@@ -546,6 +574,10 @@ pub enum MetaType {
         rust_typename: Option<&'static str>,
         /// custom directive invocations
         directive_invocations: Vec<MetaDirectiveInvocation>,
+        /// Indicates to composition that the target element is accessible only
+        /// to the authenticated supergraph users with the appropriate
+        /// JWT scopes when using Apollo Federation.
+        requires_scopes: Vec<String>,
     },
     /// Input object
     ///
@@ -719,8 +751,15 @@ pub struct MetaDirective {
 }
 
 impl MetaDirective {
-    pub(crate) fn sdl(&self) -> String {
-        let mut sdl = format!("directive @{}", self.name);
+    pub(crate) fn sdl(&self, options: &SDLExportOptions) -> String {
+        let mut sdl = String::new();
+
+        if let Some(description) = &self.description {
+            self::export_sdl::write_description(&mut sdl, options, 0, description);
+        }
+
+        write!(sdl, "directive @{}", self.name).ok();
+
         if !self.args.is_empty() {
             let args = self
                 .args
@@ -782,6 +821,7 @@ impl Registry {
                     name: "if".to_string(),
                     description: Some("Skipped when true.".to_string()),
                     ty: "Boolean!".to_string(),
+                    deprecation: Deprecation::NoDeprecated,
                     default_value: None,
                     visible: None,
                     inaccessible: false,
@@ -810,6 +850,7 @@ impl Registry {
                     name: "if".to_string(),
                     description: Some("Included when true.".to_string()),
                     ty: "Boolean!".to_string(),
+                    deprecation: Deprecation::NoDeprecated,
                     default_value: None,
                     visible: None,
                     inaccessible: false,
@@ -846,6 +887,7 @@ impl Registry {
                                 .into(),
                         ),
                         ty: "String".into(),
+                        deprecation: Deprecation::NoDeprecated,
                         default_value: Some(r#""No longer supported""#.into()),
                         visible: None,
                         inaccessible: false,
@@ -873,6 +915,7 @@ impl Registry {
                         name: "url".into(),
                         description: Some("URL that specifies the behavior of this scalar.".into()),
                         ty: "String!".into(),
+                        deprecation: Deprecation::NoDeprecated,
                         default_value: None,
                         visible: None,
                         inaccessible: false,
@@ -891,8 +934,8 @@ impl Registry {
         self.add_directive(MetaDirective {
             name: "oneOf".into(),
             description: Some(
-                "Indicates that an Input Object is a OneOf Input Object (and thus requires
-                        exactly one of its field be provided)"
+                "Indicates that an Input Object is a OneOf Input Object (and thus requires \
+                exactly one of its field be provided)"
                     .to_string(),
             ),
             locations: vec![__DirectiveLocation::INPUT_OBJECT],
@@ -912,7 +955,7 @@ impl Registry {
 
     pub fn create_input_type<T, F>(&mut self, type_id: MetaTypeId, mut f: F) -> String
     where
-        T: InputType + ?Sized,
+        T: InputType,
         F: FnMut(&mut Registry) -> MetaType,
     {
         self.create_type(&mut f, &T::type_name(), std::any::type_name::<T>(), type_id);
@@ -1114,6 +1157,7 @@ impl Registry {
                     visible: None,
                     compute_complexity: None,
                     directive_invocations: vec![],
+                    requires_scopes: vec![],
                 },
             );
         }
@@ -1129,6 +1173,7 @@ impl Registry {
                     inaccessible: false,
                     tags: Default::default(),
                     rust_typename: Some("async_graphql::federation::Entity"),
+                    directive_invocations: vec![],
                 },
             );
 
@@ -1146,6 +1191,7 @@ impl Registry {
                                     name: "representations".to_string(),
                                     description: None,
                                     ty: "[_Any!]!".to_string(),
+                                    deprecation: Deprecation::NoDeprecated,
                                     default_value: None,
                                     visible: None,
                                     inaccessible: false,
@@ -1169,6 +1215,7 @@ impl Registry {
                         override_from: None,
                         compute_complexity: None,
                         directive_invocations: vec![],
+                        requires_scopes: vec![],
                     },
                 );
             }
@@ -1198,6 +1245,7 @@ impl Registry {
                     compute_complexity: None,
                     override_from: None,
                     directive_invocations: vec![],
+                    requires_scopes: vec![],
                 },
             );
 
@@ -1214,6 +1262,7 @@ impl Registry {
                                 name: "name".to_string(),
                                 description: None,
                                 ty: "String!".to_string(),
+                                deprecation: Deprecation::NoDeprecated,
                                 default_value: None,
                                 visible: None,
                                 inaccessible: false,
@@ -1237,6 +1286,7 @@ impl Registry {
                     visible: None,
                     compute_complexity: None,
                     directive_invocations: vec![],
+                    requires_scopes: vec![],
                 },
             );
         }
@@ -1271,6 +1321,7 @@ impl Registry {
                             override_from: None,
                             compute_complexity: None,
                             directive_invocations: vec![],
+                            requires_scopes: vec![],
                         },
                     );
                     fields
@@ -1287,6 +1338,7 @@ impl Registry {
                 is_subscription: false,
                 rust_typename: Some("async_graphql::federation::Service"),
                 directive_invocations: vec![],
+                requires_scopes: vec![],
             },
         );
 
@@ -1583,13 +1635,14 @@ impl Registry {
         }
 
         for ty in self.types.values() {
-            if let MetaType::Interface { possible_types, .. } = ty {
-                if ty.is_visible(ctx) && !visible_types.contains(ty.name()) {
-                    for type_name in possible_types.iter() {
-                        if visible_types.contains(type_name.as_str()) {
-                            traverse_type(ctx, &self.types, &mut visible_types, ty.name());
-                            break;
-                        }
+            if let MetaType::Interface { possible_types, .. } = ty
+                && ty.is_visible(ctx)
+                && !visible_types.contains(ty.name())
+            {
+                for type_name in possible_types.iter() {
+                    if visible_types.contains(type_name.as_str()) {
+                        traverse_type(ctx, &self.types, &mut visible_types, ty.name());
+                        break;
                     }
                 }
             }

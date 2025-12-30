@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::{model::__Type, registry, Object};
+use crate::{Object, model::__Type, registry};
 
 pub struct __InputValue<'a> {
     pub registry: &'a registry::Registry,
@@ -32,5 +32,15 @@ impl<'a> __InputValue<'a> {
     #[inline]
     async fn default_value(&self) -> Option<&str> {
         self.input_value.default_value.as_deref()
+    }
+
+    #[inline]
+    async fn is_deprecated(&self) -> bool {
+        self.input_value.deprecation.is_deprecated()
+    }
+
+    #[inline]
+    async fn deprecation_reason(&self) -> Option<&str> {
+        self.input_value.deprecation.reason()
     }
 }

@@ -3,10 +3,11 @@ use std::{
     sync::Arc,
 };
 
+use super::{Directive, directive::to_meta_directive_invocation};
 use crate::{
+    Value,
     dynamic::SchemaError,
     registry::{MetaType, Registry, ScalarValidatorFn},
-    Value,
 };
 
 /// A GraphQL scalar type
@@ -49,6 +50,8 @@ pub struct Scalar {
     pub(crate) validator: Option<ScalarValidatorFn>,
     inaccessible: bool,
     tags: Vec<String>,
+    pub(crate) directives: Vec<Directive>,
+    requires_scopes: Vec<String>,
 }
 
 impl Debug for Scalar {
@@ -59,6 +62,7 @@ impl Debug for Scalar {
             .field("specified_by_url", &self.specified_by_url)
             .field("inaccessible", &self.inaccessible)
             .field("tags", &self.tags)
+            .field("requires_scopes", &self.requires_scopes)
             .finish()
     }
 }
@@ -74,12 +78,15 @@ impl Scalar {
             validator: None,
             inaccessible: false,
             tags: Vec::new(),
+            directives: Vec::new(),
+            requires_scopes: Vec::new(),
         }
     }
 
     impl_set_description!();
     impl_set_inaccessible!();
     impl_set_tags!();
+    impl_directive!();
 
     /// Set the validator
     #[inline]
@@ -124,6 +131,8 @@ impl Scalar {
                 inaccessible: self.inaccessible,
                 tags: self.tags.clone(),
                 specified_by_url: self.specified_by_url.clone(),
+                directive_invocations: to_meta_directive_invocation(self.directives.clone()),
+                requires_scopes: self.requires_scopes.clone(),
             },
         );
         Ok(())
@@ -134,7 +143,7 @@ impl Scalar {
 mod tests {
     use async_graphql_parser::Pos;
 
-    use crate::{dynamic::*, value, PathSegment, ServerError};
+    use crate::{PathSegment, ServerError, dynamic::*, value};
 
     #[tokio::test]
     async fn custom_scalar() {

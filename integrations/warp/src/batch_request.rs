@@ -1,9 +1,12 @@
-use std::{io, io::ErrorKind, str::FromStr};
+use std::{io, str::FromStr};
 
-use async_graphql::{http::MultipartOptions, BatchRequest, Executor};
+use async_graphql::{BatchRequest, Executor, http::MultipartOptions};
 use futures_util::TryStreamExt;
-use http::{HeaderName, HeaderValue};
-use warp::{reply::Response as WarpResponse, Buf, Filter, Rejection, Reply};
+use warp::{
+    Buf, Filter, Rejection, Reply,
+    http::{HeaderName, HeaderValue},
+    reply::Response as WarpResponse,
+};
 
 use crate::GraphQLBadRequest;
 
@@ -43,7 +46,7 @@ where
             .and_then(move |content_type, body| async move {
                 async_graphql::http::receive_batch_body(
                     content_type,
-                    TryStreamExt::map_err(body, |e| io::Error::new(ErrorKind::Other, e))
+                    TryStreamExt::map_err(body, io::Error::other)
                         .map_ok(|mut buf| {
                             let remaining = Buf::remaining(&buf);
                             Buf::copy_to_bytes(&mut buf, remaining)
@@ -77,12 +80,11 @@ impl Reply for GraphQLBatchResponse {
         )
         .into_response();
 
-        if self.0.is_ok() {
-            if let Some(cache_control) = self.0.cache_control().value() {
-                if let Ok(value) = cache_control.try_into() {
-                    resp.headers_mut().insert("cache-control", value);
-                }
-            }
+        if self.0.is_ok()
+            && let Some(cache_control) = self.0.cache_control().value()
+            && let Ok(value) = cache_control.try_into()
+        {
+            resp.headers_mut().insert("cache-control", value);
         }
 
         resp.headers_mut()

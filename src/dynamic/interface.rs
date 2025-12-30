@@ -1,5 +1,6 @@
 use indexmap::{IndexMap, IndexSet};
 
+use super::{Directive, directive::to_meta_directive_invocation};
 use crate::{
     dynamic::{InputValue, SchemaError, TypeRef},
     registry::{Deprecation, MetaField, MetaType, Registry},
@@ -95,6 +96,8 @@ pub struct InterfaceField {
     pub(crate) inaccessible: bool,
     pub(crate) tags: Vec<String>,
     pub(crate) override_from: Option<String>,
+    pub(crate) directives: Vec<Directive>,
+    pub(crate) requires_scopes: Vec<String>,
 }
 
 impl InterfaceField {
@@ -113,6 +116,8 @@ impl InterfaceField {
             inaccessible: false,
             tags: Vec::new(),
             override_from: None,
+            directives: Vec::new(),
+            requires_scopes: Vec::new(),
         }
     }
 
@@ -125,6 +130,7 @@ impl InterfaceField {
     impl_set_inaccessible!();
     impl_set_tags!();
     impl_set_override_from!();
+    impl_directive!();
 
     /// Add an argument to the field
     #[inline]
@@ -145,6 +151,8 @@ pub struct Interface {
     extends: bool,
     inaccessible: bool,
     tags: Vec<String>,
+    pub(crate) directives: Vec<Directive>,
+    requires_scopes: Vec<String>,
 }
 
 impl Interface {
@@ -160,6 +168,8 @@ impl Interface {
             extends: false,
             inaccessible: false,
             tags: Vec::new(),
+            directives: Vec::new(),
+            requires_scopes: Vec::new(),
         }
     }
 
@@ -167,6 +177,7 @@ impl Interface {
     impl_set_extends!();
     impl_set_inaccessible!();
     impl_set_tags!();
+    impl_directive!();
 
     /// Add a field to the interface type
     #[inline]
@@ -240,7 +251,8 @@ impl Interface {
                     tags: field.tags.clone(),
                     override_from: field.override_from.clone(),
                     compute_complexity: None,
-                    directive_invocations: vec![],
+                    directive_invocations: to_meta_directive_invocation(field.directives.clone()),
+                    requires_scopes: field.requires_scopes.clone(),
                 },
             );
         }
@@ -262,7 +274,8 @@ impl Interface {
                 inaccessible: self.inaccessible,
                 tags: self.tags.clone(),
                 rust_typename: None,
-                directive_invocations: vec![],
+                directive_invocations: to_meta_directive_invocation(self.directives.clone()),
+                requires_scopes: self.requires_scopes.clone(),
             },
         );
 
@@ -274,7 +287,7 @@ impl Interface {
 mod tests {
     use async_graphql_parser::Pos;
 
-    use crate::{dynamic::*, value, PathSegment, ServerError, Value};
+    use crate::{PathSegment, ServerError, Value, dynamic::*, value};
 
     #[tokio::test]
     async fn basic_interface() {
@@ -327,7 +340,7 @@ mod tests {
         fragment B on MyObjB {
             c
         }
-        
+
         {
             valueA { __typename a ...A ...B }
             valueB { __typename a ...A ...B }

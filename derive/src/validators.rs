@@ -1,6 +1,6 @@
 use darling::FromMeta;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{Expr, Lit, Result};
 
 #[derive(Clone)]
@@ -25,6 +25,22 @@ impl ToTokens for Number {
             Number::F64(n) => tokens.extend(quote!(#n as f64)),
             Number::I64(n) => tokens.extend(quote!(#n as i64)),
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum UuidVersionValidation {
+    None,
+    Value(Lit),
+}
+
+impl FromMeta for UuidVersionValidation {
+    fn from_word() -> darling::Result<Self> {
+        Ok(UuidVersionValidation::None)
+    }
+
+    fn from_value(value: &Lit) -> darling::Result<Self> {
+        Ok(UuidVersionValidation::Value(value.clone()))
     }
 }
 
@@ -58,6 +74,8 @@ pub struct Validators {
     ip: bool,
     #[darling(default)]
     regex: Option<String>,
+    #[darling(default)]
+    uuid: Option<UuidVersionValidation>,
     #[darling(default, multiple)]
     custom: Vec<Expr>,
     #[darling(default)]
@@ -157,6 +175,21 @@ impl Validators {
             elem_validators.push(quote! {
                 #crate_name::validators::regex(__raw_value, #re)
             });
+        }
+
+        if let Some(version_validation) = &self.uuid {
+            match version_validation {
+                UuidVersionValidation::None => {
+                    elem_validators.push(quote! {
+                        #crate_name::validators::uuid(__raw_value, None)
+                    });
+                }
+                UuidVersionValidation::Value(version) => {
+                    elem_validators.push(quote! {
+                        #crate_name::validators::uuid(__raw_value, Some(#version))
+                    });
+                }
+            }
         }
 
         if !list_validators.is_empty() {

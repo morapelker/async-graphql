@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
 
+use super::{Directive, directive::to_meta_directive_invocation};
 use crate::{
     dynamic::SchemaError,
     registry::{Deprecation, MetaEnumValue, MetaType, Registry},
@@ -13,6 +14,7 @@ pub struct EnumItem {
     pub(crate) deprecation: Deprecation,
     inaccessible: bool,
     tags: Vec<String>,
+    pub(crate) directives: Vec<Directive>,
 }
 
 impl<T: Into<String>> From<T> for EnumItem {
@@ -24,6 +26,7 @@ impl<T: Into<String>> From<T> for EnumItem {
             deprecation: Deprecation::NoDeprecated,
             inaccessible: false,
             tags: Vec::new(),
+            directives: Vec::new(),
         }
     }
 }
@@ -39,6 +42,7 @@ impl EnumItem {
     impl_set_deprecation!();
     impl_set_inaccessible!();
     impl_set_tags!();
+    impl_directive!();
 }
 
 /// A GraphQL enum type
@@ -49,6 +53,8 @@ pub struct Enum {
     pub(crate) enum_values: IndexMap<String, EnumItem>,
     inaccessible: bool,
     tags: Vec<String>,
+    pub(crate) directives: Vec<Directive>,
+    requires_scopes: Vec<String>,
 }
 
 impl Enum {
@@ -61,10 +67,13 @@ impl Enum {
             enum_values: Default::default(),
             inaccessible: false,
             tags: Vec::new(),
+            directives: Vec::new(),
+            requires_scopes: Vec::new(),
         }
     }
 
     impl_set_description!();
+    impl_directive!();
 
     /// Add an item
     #[inline]
@@ -105,7 +114,7 @@ impl Enum {
                     visible: None,
                     inaccessible: item.inaccessible,
                     tags: item.tags.clone(),
-                    directive_invocations: vec![],
+                    directive_invocations: to_meta_directive_invocation(item.directives.clone()),
                 },
             );
         }
@@ -120,7 +129,8 @@ impl Enum {
                 inaccessible: self.inaccessible,
                 tags: self.tags.clone(),
                 rust_typename: None,
-                directive_invocations: vec![],
+                directive_invocations: to_meta_directive_invocation(self.directives.clone()),
+                requires_scopes: self.requires_scopes.clone(),
             },
         );
 
@@ -130,7 +140,7 @@ impl Enum {
 
 #[cfg(test)]
 mod tests {
-    use crate::{dynamic::*, value, Name, PathSegment, Pos, ServerError, Value};
+    use crate::{Name, PathSegment, Pos, ServerError, Value, dynamic::*, value};
 
     #[tokio::test]
     async fn enum_type() {

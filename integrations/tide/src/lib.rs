@@ -11,16 +11,16 @@
 #[cfg(feature = "websocket")]
 mod subscription;
 
-use async_graphql::{http::MultipartOptions, Executor, ParseRequestError};
+use async_graphql::{Executor, ParseRequestError, http::MultipartOptions};
 #[cfg(feature = "websocket")]
 pub use subscription::GraphQLSubscription;
 use tide::{
+    Body, Request, Response, StatusCode,
     http::{
-        headers::{self, HeaderValue},
         Method,
+        headers::{self, HeaderValue},
     },
     utils::async_trait,
-    Body, Request, Response, StatusCode,
 };
 
 /// Create a new GraphQL endpoint with the executor.
@@ -159,10 +159,10 @@ pub fn respond(resp: impl Into<async_graphql::BatchResponse>) -> tide::Result {
     let resp = resp.into();
 
     let mut response = Response::new(StatusCode::Ok);
-    if resp.is_ok() {
-        if let Some(cache_control) = resp.cache_control().value() {
-            response.insert_header(headers::CACHE_CONTROL, cache_control);
-        }
+    if resp.is_ok()
+        && let Some(cache_control) = resp.cache_control().value()
+    {
+        response.insert_header(headers::CACHE_CONTROL, cache_control);
     }
 
     for (name, value) in resp.http_headers_iter() {

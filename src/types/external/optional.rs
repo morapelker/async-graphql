@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{
-    parser::types::Field, registry, ContextSelectionSet, InputType, InputValueError,
-    InputValueResult, OutputType, Positioned, ServerResult, Value,
+    ContextSelectionSet, InputType, InputValueError, InputValueResult, OutputType, Positioned,
+    ServerResult, Value, parser::types::Field, registry,
 };
 
 impl<T: InputType> InputType for Option<T> {
@@ -45,6 +45,7 @@ impl<T: InputType> InputType for Option<T> {
     }
 }
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl<T: OutputType + Sync> OutputType for Option<T> {
     fn type_name() -> Cow<'static, str> {
         T::type_name()

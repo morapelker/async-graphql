@@ -1,13 +1,12 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{ext::IdentExt, Error, FnArg, ItemFn, Pat};
+use syn::{Error, FnArg, ItemFn, Pat, ext::IdentExt};
 
 use crate::{
-    args,
-    args::{Argument, RenameRuleExt, RenameTarget},
+    args::{self, Argument, RenameRuleExt, RenameTarget},
     utils::{
-        generate_default, get_crate_name, get_rustdoc, parse_graphql_attrs, remove_graphql_attrs,
-        visible_fn, GeneratorResult,
+        GeneratorResult, gen_deprecation, generate_default, get_crate_name, get_rustdoc,
+        parse_graphql_attrs, remove_graphql_attrs, visible_fn,
     },
 };
 
@@ -40,11 +39,11 @@ pub fn generate(
     for arg in item_fn.sig.inputs.iter_mut() {
         let mut arg_info = None;
 
-        if let FnArg::Typed(pat) = arg {
-            if let Pat::Ident(ident) = &*pat.pat {
-                arg_info = Some((ident.clone(), pat.ty.clone(), pat.attrs.clone()));
-                remove_graphql_attrs(&mut pat.attrs);
-            }
+        if let FnArg::Typed(pat) = arg
+            && let Pat::Ident(ident) = &*pat.pat
+        {
+            arg_info = Some((ident.clone(), pat.ty.clone(), pat.attrs.clone()));
+            remove_graphql_attrs(&mut pat.attrs);
         }
 
         let (arg_ident, arg_ty, arg_attrs) = match arg_info {
@@ -63,6 +62,7 @@ pub fn generate(
             visible,
             secret,
             directives,
+            deprecation,
             ..
         } = parse_graphql_attrs::<args::Argument>(&arg_attrs)?.unwrap_or_default();
 
@@ -87,12 +87,14 @@ pub fn generate(
             })
             .unwrap_or_else(|| quote! {::std::option::Option::None});
         let visible = visible_fn(&visible);
+        let deprecation = gen_deprecation(&deprecation, &crate_name);
 
         schema_args.push(quote! {
             args.insert(::std::borrow::ToOwned::to_owned(#name), #crate_name::registry::MetaInputValue {
                 name: ::std::string::ToString::to_string(#name),
                 description: #desc,
                 ty: <#arg_ty as #crate_name::InputType>::create_type_info(registry),
+                deprecation: #deprecation,
                 default_value: #schema_default,
                 visible: #visible,
                 inaccessible: false,

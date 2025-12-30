@@ -1,5 +1,6 @@
 use indexmap::{IndexMap, IndexSet};
 
+use super::{Directive, directive::to_meta_directive_invocation};
 use crate::{
     dynamic::{Field, SchemaError},
     registry::{MetaField, MetaType, Registry},
@@ -48,6 +49,8 @@ pub struct Object {
     inaccessible: bool,
     interface_object: bool,
     tags: Vec<String>,
+    pub(crate) directives: Vec<Directive>,
+    requires_scopes: Vec<String>,
 }
 
 impl Object {
@@ -66,6 +69,8 @@ impl Object {
             inaccessible: false,
             interface_object: false,
             tags: Vec::new(),
+            directives: Vec::new(),
+            requires_scopes: Vec::new(),
         }
     }
 
@@ -75,6 +80,7 @@ impl Object {
     impl_set_inaccessible!();
     impl_set_interface_object!();
     impl_set_tags!();
+    impl_directive!();
 
     /// Add an field to the object
     #[inline]
@@ -106,7 +112,7 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// use async_graphql::{dynamic::*, Value};
+    /// use async_graphql::{Value, dynamic::*};
     ///
     /// let obj = Object::new("MyObj")
     ///     .field(Field::new("a", TypeRef::named(TypeRef::INT), |_| {
@@ -133,7 +139,7 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// use async_graphql::{dynamic::*, Value};
+    /// use async_graphql::{Value, dynamic::*};
     ///
     /// let obj = Object::new("MyObj")
     ///     .field(Field::new("a", TypeRef::named(TypeRef::INT), |_| {
@@ -184,7 +190,8 @@ impl Object {
                     tags: field.tags.clone(),
                     override_from: field.override_from.clone(),
                     compute_complexity: None,
-                    directive_invocations: vec![],
+                    directive_invocations: to_meta_directive_invocation(field.directives.clone()),
+                    requires_scopes: field.requires_scopes.clone(),
                 },
             );
         }
@@ -210,7 +217,8 @@ impl Object {
                 tags: self.tags.clone(),
                 is_subscription: false,
                 rust_typename: None,
-                directive_invocations: vec![],
+                directive_invocations: to_meta_directive_invocation(self.directives.clone()),
+                requires_scopes: self.requires_scopes.clone(),
             },
         );
 
@@ -229,7 +237,7 @@ impl Object {
 
 #[cfg(test)]
 mod tests {
-    use crate::{dynamic::*, value, Value};
+    use crate::{Value, dynamic::*, value};
 
     #[tokio::test]
     async fn borrow_context() {

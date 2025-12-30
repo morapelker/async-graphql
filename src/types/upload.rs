@@ -4,7 +4,7 @@ use std::{borrow::Cow, io::Read, ops::Deref, sync::Arc};
 use futures_util::io::AsyncRead;
 
 use crate::{
-    registry, registry::MetaTypeId, Context, InputType, InputValueError, InputValueResult, Value,
+    Context, InputType, InputValueError, InputValueResult, Value, registry, registry::MetaTypeId,
 };
 
 /// A file upload value.
@@ -167,16 +167,18 @@ impl InputType for Upload {
             specified_by_url: Some(
                 "https://github.com/jaydenseric/graphql-multipart-request-spec".to_string(),
             ),
+            directive_invocations: Default::default(),
+            requires_scopes: Default::default(),
         })
     }
 
     fn parse(value: Option<Value>) -> InputValueResult<Self> {
         const PREFIX: &str = "#__graphql_file__:";
         let value = value.unwrap_or_default();
-        if let Value::String(s) = &value {
-            if let Some(filename) = s.strip_prefix(PREFIX) {
-                return Ok(Upload(filename.parse::<usize>().unwrap()));
-            }
+        if let Value::String(s) = &value
+            && let Some(filename) = s.strip_prefix(PREFIX)
+        {
+            return Ok(Upload(filename.parse::<usize>().unwrap()));
         }
         Err(InputValueError::expected_type(value))
     }

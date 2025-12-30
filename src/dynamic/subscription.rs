@@ -1,21 +1,21 @@
 use std::{borrow::Cow, fmt, fmt::Debug, sync::Arc};
 
 use futures_util::{
-    future::BoxFuture, stream::BoxStream, Future, FutureExt, Stream, StreamExt, TryStreamExt,
+    Future, FutureExt, Stream, StreamExt, TryStreamExt, future::BoxFuture, stream::BoxStream,
 };
 use indexmap::IndexMap;
 
 use crate::{
+    ContextSelectionSet, Data, Name, QueryPathNode, QueryPathSegment, Response, Result,
+    ServerResult, Value,
     dynamic::{
-        resolve::resolve, FieldValue, InputValue, ObjectAccessor, ResolverContext, Schema,
-        SchemaError, TypeRef,
+        FieldValue, InputValue, ObjectAccessor, ResolverContext, Schema, SchemaError, TypeRef,
+        resolve::resolve,
     },
     extensions::ResolveInfo,
     parser::types::Selection,
     registry::{Deprecation, MetaField, MetaType, Registry},
     subscription::BoxFieldStream,
-    ContextSelectionSet, Data, Name, QueryPathNode, QueryPathSegment, Response, Result,
-    ServerResult, Value,
 };
 
 type BoxResolveFut<'a> = BoxFuture<'a, Result<BoxStream<'a, Result<FieldValue<'a>>>>>;
@@ -42,7 +42,7 @@ impl<'a> SubscriptionFieldFuture<'a> {
 }
 
 type BoxResolverFn =
-    Arc<(dyn for<'a> Fn(ResolverContext<'a>) -> SubscriptionFieldFuture<'a> + Send + Sync)>;
+    Arc<dyn for<'a> Fn(ResolverContext<'a>) -> SubscriptionFieldFuture<'a> + Send + Sync>;
 
 /// A GraphQL subscription field
 pub struct SubscriptionField {
@@ -163,6 +163,7 @@ impl Subscription {
                     override_from: None,
                     compute_complexity: None,
                     directive_invocations: vec![],
+                    requires_scopes: vec![],
                 },
             );
         }
@@ -185,6 +186,7 @@ impl Subscription {
                 is_subscription: true,
                 rust_typename: None,
                 directive_invocations: vec![],
+                requires_scopes: vec![],
             },
         );
 
@@ -199,14 +201,15 @@ impl Subscription {
         root_value: &'a FieldValue<'static>,
     ) {
         for selection in &ctx.item.node.items {
-            if let Selection::Field(field) = &selection.node {
-                if let Some(field_def) = self.fields.get(field.node.name.node.as_str()) {
-                    let schema = schema.clone();
-                    let field_type = field_def.ty.clone();
-                    let resolver_fn = field_def.resolver_fn.clone();
-                    let ctx = ctx.clone();
+            if let Selection::Field(field) = &selection.node
+                && let Some(field_def) = self.fields.get(field.node.name.node.as_str())
+            {
+                let schema = schema.clone();
+                let field_type = field_def.ty.clone();
+                let resolver_fn = field_def.resolver_fn.clone();
+                let ctx = ctx.clone();
 
-                    streams.push(
+                streams.push(
                         async_stream::try_stream! {
                             let ctx_field = ctx.with_field(field);
                             let field_name = ctx_field.item.node.response_key().node.clone();
@@ -280,7 +283,6 @@ impl Subscription {
                         })
                         .boxed(),
                     );
-                }
             }
         }
     }
@@ -292,7 +294,7 @@ mod tests {
 
     use futures_util::StreamExt;
 
-    use crate::{dynamic::*, value, Value};
+    use crate::{Value, dynamic::*, value};
 
     #[tokio::test]
     async fn subscription() {

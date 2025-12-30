@@ -3,15 +3,15 @@ use std::collections::{HashMap, HashSet};
 use async_graphql_value::Value;
 
 use crate::{
+    Name, Pos, Positioned,
     parser::types::{
         ExecutableDocument, FragmentDefinition, FragmentSpread, OperationDefinition,
         VariableDefinition,
     },
     validation::{
-        utils::{referenced_variables, Scope},
+        utils::{Scope, referenced_variables},
         visitor::{Visitor, VisitorContext},
     },
-    Name, Pos, Positioned,
 };
 
 #[derive(Default)]
@@ -105,10 +105,10 @@ impl<'a> Visitor<'a> for NoUnusedVariables<'a> {
         _ctx: &mut VisitorContext<'a>,
         variable_definition: &'a Positioned<VariableDefinition>,
     ) {
-        if let Some(Scope::Operation(ref name)) = self.current_scope {
-            if let Some(vars) = self.defined_variables.get_mut(name) {
-                vars.insert((&variable_definition.node.name.node, variable_definition.pos));
-            }
+        if let Some(Scope::Operation(ref name)) = self.current_scope
+            && let Some(vars) = self.defined_variables.get_mut(name)
+        {
+            vars.insert((&variable_definition.node.name.node, variable_definition.pos));
         }
     }
 

@@ -3,8 +3,9 @@ use std::borrow::Cow;
 use async_graphql_parser::types::Field;
 use tokio::sync::Mutex;
 
-use crate::{registry, ContextSelectionSet, OutputType, Positioned, ServerResult, Value};
+use crate::{ContextSelectionSet, OutputType, Positioned, ServerResult, Value, registry};
 
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
 impl<T: OutputType> OutputType for Mutex<T> {
     fn type_name() -> Cow<'static, str> {
         T::type_name()

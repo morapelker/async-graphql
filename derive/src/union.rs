@@ -4,15 +4,18 @@ use std::collections::HashSet;
 use darling::ast::{Data, Style};
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{visit::Visit, visit_mut::VisitMut, Error, LifetimeParam, Type};
+use syn::{Error, LifetimeParam, Type, visit::Visit, visit_mut::VisitMut};
 
 use crate::{
     args::{self, RenameTarget},
-    utils::{get_crate_name, get_rustdoc, visible_fn, GeneratorResult, RemoveLifetime},
+    utils::{
+        GeneratorResult, RemoveLifetime, gen_boxed_trait, get_crate_name, get_rustdoc, visible_fn,
+    },
 };
 
 pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
     let crate_name = get_crate_name(union_args.internal);
+    let boxed_trait = gen_boxed_trait(&crate_name);
     let ident = &union_args.ident;
     let type_params = union_args.generics.type_params().collect::<Vec<_>>();
     let (impl_generics, ty_generics, where_clause) = union_args.generics.split_for_impl();
@@ -63,19 +66,19 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
                     enum_name,
                     "Only single value variants are supported",
                 )
-                .into())
+                .into());
             }
             Style::Unit => {
                 return Err(
                     Error::new_spanned(enum_name, "Empty variants are not supported").into(),
-                )
+                );
             }
             Style::Struct => {
                 return Err(Error::new_spanned(
                     enum_name,
                     "Variants with named fields are not supported",
                 )
-                .into())
+                .into());
             }
         };
 
@@ -201,7 +204,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
             #(#type_into_impls)*
 
             #[allow(clippy::all, clippy::pedantic)]
-
+            #boxed_trait
             impl #impl_generics #crate_name::resolver_utils::ContainerType for #ident #ty_generics #where_clause {
                 async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                     ::std::result::Result::Ok(::std::option::Option::None)
@@ -215,6 +218,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
             }
 
             #[allow(clippy::all, clippy::pedantic)]
+            #boxed_trait
             impl #impl_generics #crate_name::OutputType for #ident #ty_generics #where_clause {
                 fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                     #gql_typename
@@ -242,6 +246,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
                             inaccessible: #inaccessible,
                             tags: ::std::vec![ #(#tags),* ],
                             rust_typename: ::std::option::Option::Some(::std::any::type_name::<Self>()),
+                            directive_invocations: ::std::vec::Vec::new(),
                         }
                     })
                 }
@@ -320,14 +325,13 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
 
                                         // Check if the type is a generic parameter which we should
                                         // convert to a concrete type
-                                        if let syn::Type::Path(ty_path) = ty {
-                                            if let Some(idx) = type_params.iter().position(|p| {
+                                        if let syn::Type::Path(ty_path) = ty
+                                            && let Some(idx) = type_params.iter().position(|p| {
                                                 p.ident == ty_path.path.segments[0].ident
-                                            }) {
-                                                let param = &params[idx];
-                                                *ty = syn::parse2::<syn::Type>(quote!(#param))
-                                                    .unwrap();
-                                            }
+                                            })
+                                        {
+                                            let param = &params[idx];
+                                            *ty = syn::parse2::<syn::Type>(quote!(#param)).unwrap();
                                         }
                                     }
                                 }
@@ -350,7 +354,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
 
             let expanded = quote! {
                 #[allow(clippy::all, clippy::pedantic)]
-
+                #boxed_trait
                 impl #def_bounds #crate_name::resolver_utils::ContainerType for #concrete_type {
                     async fn resolve_field(&self, ctx: &#crate_name::Context<'_>) -> #crate_name::ServerResult<::std::option::Option<#crate_name::Value>> {
                         ::std::result::Result::Ok(::std::option::Option::None)
@@ -364,6 +368,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
                 }
 
                 #[allow(clippy::all, clippy::pedantic)]
+                #boxed_trait
                 impl #def_bounds #crate_name::OutputType for #concrete_type {
                     fn type_name() -> ::std::borrow::Cow<'static, ::std::primitive::str> {
                         ::std::borrow::Cow::Borrowed(#gql_typename)
@@ -391,6 +396,7 @@ pub fn generate(union_args: &args::Union) -> GeneratorResult<TokenStream> {
                                 inaccessible: #inaccessible,
                                 tags: ::std::vec![ #(#tags),* ],
                                 rust_typename: ::std::option::Option::Some(::std::any::type_name::<Self>()),
+                                directive_invocations: ::std::vec::Vec::new()
                             }
                         })
                     }

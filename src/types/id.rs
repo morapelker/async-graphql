@@ -18,6 +18,12 @@ use crate::{InputValueError, InputValueResult, Scalar, ScalarType, Value};
 #[serde(transparent)]
 pub struct ID(pub String);
 
+impl AsRef<str> for ID {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 impl Deref for ID {
     type Target = String;
 
@@ -64,7 +70,9 @@ macro_rules! try_from_integers {
     };
 }
 
-try_from_integers!(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, isize, usize);
+try_from_integers!(
+    i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, isize, usize
+);
 
 #[cfg(feature = "uuid")]
 impl TryFrom<ID> for uuid::Uuid {

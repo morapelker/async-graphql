@@ -5,13 +5,14 @@ use std::{
     ops::Deref,
 };
 
-use futures_util::{future::BoxFuture, Future, FutureExt};
+use futures_util::{Future, FutureExt, future::BoxFuture};
 use indexmap::IndexMap;
 
+use super::Directive;
 use crate::{
+    Context, Error, Result, Value,
     dynamic::{InputValue, ObjectAccessor, TypeRef},
     registry::Deprecation,
-    Context, Error, Result, Value,
 };
 
 /// A value returned from the resolver function
@@ -39,7 +40,7 @@ pub(crate) enum FieldValueInner<'a> {
     },
 }
 
-impl<'a> Debug for FieldValue<'a> {
+impl Debug for FieldValue<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
             FieldValueInner::Value(v) => write!(f, "{}", v),
@@ -58,14 +59,14 @@ impl<'a> Debug for FieldValue<'a> {
     }
 }
 
-impl<'a> From<()> for FieldValue<'a> {
+impl From<()> for FieldValue<'_> {
     #[inline]
     fn from(_: ()) -> Self {
         Self(FieldValueInner::Value(Value::Null))
     }
 }
 
-impl<'a> From<Value> for FieldValue<'a> {
+impl From<Value> for FieldValue<'_> {
     #[inline]
     fn from(value: Value) -> Self {
         Self(FieldValueInner::Value(value))
@@ -122,20 +123,14 @@ impl<'a> FieldValue<'a> {
 
     /// Create a FieldValue from unsized any value
     #[inline]
-    pub fn boxed_any<T: Any + Send + Sync>(obj: Box<T>) -> Self {
-        Self(FieldValueInner::OwnedAny(
-            std::any::type_name::<T>().into(),
-            obj,
-        ))
+    pub fn boxed_any(obj: Box<dyn Any + Send + Sync>) -> Self {
+        Self(FieldValueInner::OwnedAny("Any".into(), obj))
     }
 
     /// Create a FieldValue from owned any value
     #[inline]
-    pub fn borrowed_any<T: Any + Send + Sync>(obj: &'a T) -> Self {
-        Self(FieldValueInner::BorrowedAny(
-            std::any::type_name::<T>().into(),
-            obj,
-        ))
+    pub fn borrowed_any(obj: &'a (dyn Any + Send + Sync)) -> Self {
+        Self(FieldValueInner::BorrowedAny("Any".into(), obj))
     }
 
     /// Create a FieldValue from list
@@ -229,7 +224,7 @@ impl<'a> FieldValue<'a> {
     /// If the FieldValue is a list, returns the associated
     /// vector. Returns `None` otherwise.
     #[inline]
-    pub fn as_list(&self) -> Option<&[FieldValue]> {
+    pub fn as_list(&self) -> Option<&[FieldValue<'_>]> {
         match &self.0 {
             FieldValueInner::List(values) => Some(values),
             _ => None,
@@ -238,7 +233,7 @@ impl<'a> FieldValue<'a> {
 
     /// Like `as_list`, but returns `Result`.
     #[inline]
-    pub fn try_to_list(&self) -> Result<&[FieldValue]> {
+    pub fn try_to_list(&self) -> Result<&[FieldValue<'_>]> {
         self.as_list()
             .ok_or_else(|| Error::new(format!("internal: \"{:?}\" not a List", self)))
     }
@@ -319,7 +314,7 @@ impl<'a> FieldFuture<'a> {
 }
 
 pub(crate) type BoxResolverFn =
-    Box<(dyn for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a> + Send + Sync)>;
+    Box<dyn for<'a> Fn(ResolverContext<'a>) -> FieldFuture<'a> + Send + Sync>;
 
 /// A GraphQL field
 pub struct Field {
@@ -337,6 +332,8 @@ pub struct Field {
     pub(crate) inaccessible: bool,
     pub(crate) tags: Vec<String>,
     pub(crate) override_from: Option<String>,
+    pub(crate) directives: Vec<Directive>,
+    pub(crate) requires_scopes: Vec<String>,
 }
 
 impl Debug for Field {
@@ -375,6 +372,8 @@ impl Field {
             inaccessible: false,
             tags: Vec::new(),
             override_from: None,
+            directives: Vec::new(),
+            requires_scopes: Vec::new(),
         }
     }
 
@@ -387,6 +386,7 @@ impl Field {
     impl_set_inaccessible!();
     impl_set_tags!();
     impl_set_override_from!();
+    impl_directive!();
 
     /// Add an argument to the field
     #[inline]

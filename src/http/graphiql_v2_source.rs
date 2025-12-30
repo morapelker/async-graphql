@@ -21,6 +21,15 @@ pub enum Credentials {
     Omit,
 }
 
+#[derive(Serialize)]
+struct GraphiQLVersion<'a>(&'a str);
+
+impl Default for GraphiQLVersion<'_> {
+    fn default() -> Self {
+        Self("4")
+    }
+}
+
 /// A builder for constructing a GraphiQL (v2) HTML page.
 ///
 /// # Example
@@ -32,6 +41,7 @@ pub enum Credentials {
 ///     .endpoint("/")
 ///     .subscription_endpoint("/ws")
 ///     .header("Authorization", "Bearer [token]")
+///     .ws_connection_param("token", "[token]")
 ///     .credentials(Credentials::Include)
 ///     .finish();
 /// ```
@@ -39,7 +49,9 @@ pub enum Credentials {
 pub struct GraphiQLSource<'a> {
     endpoint: &'a str,
     subscription_endpoint: Option<&'a str>,
+    version: GraphiQLVersion<'a>,
     headers: Option<HashMap<&'a str, &'a str>>,
+    ws_connection_params: Option<HashMap<&'a str, &'a str>>,
     title: Option<&'a str>,
     credentials: Credentials,
     plugins: &'a [GraphiQLPlugin<'a>],
@@ -71,6 +83,24 @@ impl<'a> GraphiQLSource<'a> {
         headers.insert(name, value);
         GraphiQLSource {
             headers: Some(headers),
+            ..self
+        }
+    }
+
+    /// Sets the version of GraphiQL to be fetched.
+    pub fn version(self, value: &'a str) -> GraphiQLSource<'a> {
+        GraphiQLSource {
+            version: GraphiQLVersion(value),
+            ..self
+        }
+    }
+
+    /// Sets a WS connection param to be sent during GraphiQL WS connections.
+    pub fn ws_connection_param(self, name: &'a str, value: &'a str) -> GraphiQLSource<'a> {
+        let mut ws_connection_params = self.ws_connection_params.unwrap_or_default();
+        ws_connection_params.insert(name, value);
+        GraphiQLSource {
+            ws_connection_params: Some(ws_connection_params),
             ..self
         }
     }
@@ -146,20 +176,20 @@ mod tests {
     </style>
     <script
       crossorigin
-      src="https://unpkg.com/react@17/umd/react.development.js"
+      src="https://unpkg.com/react@18/umd/react.development.js"
     ></script>
     <script
       crossorigin
-      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
     ></script>
     <link rel="icon" href="https://graphql.org/favicon.ico">
-    <link rel="stylesheet" href="https://unpkg.com/graphiql/graphiql.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/graphiql@4/graphiql.min.css" />
   </head>
 
   <body>
     <div id="graphiql">Loading...</div>
     <script
-      src="https://unpkg.com/graphiql/graphiql.min.js"
+      src="https://unpkg.com/graphiql@4/graphiql.min.js"
       type="application/javascript"
     ></script>
     <script>
@@ -175,15 +205,14 @@ mod tests {
         return url.toString();
       }
 
-      ReactDOM.render(
+      ReactDOM.createRoot(document.getElementById("graphiql")).render(
         React.createElement(GraphiQL, {
           fetcher: GraphiQL.createFetcher({
             url: createUrl('/'),
             fetch: customFetch,
           }),
           defaultEditorToolsVisibility: true,
-        }),
-        document.getElementById("graphiql")
+        })
       );
     </script>
   </body>
@@ -224,20 +253,20 @@ mod tests {
     </style>
     <script
       crossorigin
-      src="https://unpkg.com/react@17/umd/react.development.js"
+      src="https://unpkg.com/react@18/umd/react.development.js"
     ></script>
     <script
       crossorigin
-      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
     ></script>
     <link rel="icon" href="https://graphql.org/favicon.ico">
-    <link rel="stylesheet" href="https://unpkg.com/graphiql/graphiql.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/graphiql@4/graphiql.min.css" />
   </head>
 
   <body>
     <div id="graphiql">Loading...</div>
     <script
-      src="https://unpkg.com/graphiql/graphiql.min.js"
+      src="https://unpkg.com/graphiql@4/graphiql.min.js"
       type="application/javascript"
     ></script>
     <script>
@@ -253,7 +282,7 @@ mod tests {
         return url.toString();
       }
 
-      ReactDOM.render(
+      ReactDOM.createRoot(document.getElementById("graphiql")).render(
         React.createElement(GraphiQL, {
           fetcher: GraphiQL.createFetcher({
             url: createUrl('/'),
@@ -261,8 +290,7 @@ mod tests {
             subscriptionUrl: createUrl('/ws', true),
           }),
           defaultEditorToolsVisibility: true,
-        }),
-        document.getElementById("graphiql")
+        })
       );
     </script>
   </body>
@@ -277,6 +305,8 @@ mod tests {
             .endpoint("/")
             .subscription_endpoint("/ws")
             .header("Authorization", "Bearer [token]")
+            .version("3.9.0")
+            .ws_connection_param("token", "[token]")
             .title("Awesome GraphiQL IDE Test")
             .credentials(Credentials::Include)
             .plugins(&[graphiql_plugin_explorer()])
@@ -308,21 +338,21 @@ mod tests {
     </style>
     <script
       crossorigin
-      src="https://unpkg.com/react@17/umd/react.development.js"
+      src="https://unpkg.com/react@18/umd/react.development.js"
     ></script>
     <script
       crossorigin
-      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
     ></script>
     <link rel="icon" href="https://graphql.org/favicon.ico">
-    <link rel="stylesheet" href="https://unpkg.com/graphiql/graphiql.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/graphiql@3.9.0/graphiql.min.css" />
     <link rel="stylesheet" href="https://unpkg.com/@graphiql/plugin-explorer/dist/style.css" />
   </head>
 
   <body>
     <div id="graphiql">Loading...</div>
     <script
-      src="https://unpkg.com/graphiql/graphiql.min.js"
+      src="https://unpkg.com/graphiql@3.9.0/graphiql.min.js"
       type="application/javascript"
     ></script>
     <script
@@ -345,7 +375,7 @@ mod tests {
       const plugins = [];
       plugins.push(GraphiQLPluginExplorer.explorerPlugin());
 
-      ReactDOM.render(
+      ReactDOM.createRoot(document.getElementById("graphiql")).render(
         React.createElement(GraphiQL, {
           fetcher: GraphiQL.createFetcher({
             url: createUrl('/'),
@@ -354,11 +384,13 @@ mod tests {
             headers: {
               'Authorization': 'Bearer [token]',
             },
+            wsConnectionParams: {
+              'token': '[token]',
+            },
           }),
           defaultEditorToolsVisibility: true,
           plugins,
-        }),
-        document.getElementById("graphiql")
+        })
       );
     </script>
   </body>

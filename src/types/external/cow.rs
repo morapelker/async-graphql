@@ -2,9 +2,10 @@ use std::borrow::Cow;
 
 use async_graphql_parser::types::Field;
 
-use crate::{registry, ContextSelectionSet, OutputType, Positioned, ServerResult, Value};
+use crate::{ContextSelectionSet, OutputType, Positioned, ServerResult, Value, registry};
 
-impl<'a, T> OutputType for Cow<'a, T>
+#[cfg_attr(feature = "boxed-trait", async_trait::async_trait)]
+impl<T> OutputType for Cow<'_, T>
 where
     T: OutputType + ToOwned + ?Sized,
     <T as ToOwned>::Owned: Send + Sync,

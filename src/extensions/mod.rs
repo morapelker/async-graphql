@@ -18,7 +18,7 @@ use std::{
     sync::Arc,
 };
 
-use futures_util::{future::BoxFuture, stream::BoxStream, FutureExt};
+use futures_util::{FutureExt, future::BoxFuture, stream::BoxStream};
 
 pub use self::analyzer::Analyzer;
 #[cfg(feature = "apollo_tracing")]
@@ -30,20 +30,31 @@ pub use self::opentelemetry::OpenTelemetry;
 #[cfg(feature = "tracing")]
 pub use self::tracing::Tracing;
 use crate::{
+    Data, DataContext, Error, QueryPathNode, Request, Response, Result, SDLExportOptions,
+    SchemaEnv, ServerError, ServerResult, ValidationResult, Value, Variables,
     parser::types::{ExecutableDocument, Field},
-    Data, DataContext, Error, QueryPathNode, Request, Response, Result, SchemaEnv, ServerError,
-    ServerResult, ValidationResult, Value, Variables,
 };
 
 /// Context for extension
 pub struct ExtensionContext<'a> {
-    #[doc(hidden)]
+    /// Schema-scope context data, [`Registry`], and custom directives.
     pub schema_env: &'a SchemaEnv,
 
-    #[doc(hidden)]
+    /// Extension-scoped context data shared across all extensions.
+    ///
+    /// Can be accessed only from hooks that implement the [`Extension`] trait.
+    ///
+    /// It is created with each new [`Request`] and is empty by default.
+    ///
+    /// For subscriptions, the session ends when the subscription is closed.
     pub session_data: &'a Data,
 
-    #[doc(hidden)]
+    /// Request-scoped context data shared across all resolvers.
+    ///
+    /// This is a reference to [`Request::data`](Request) field.
+    /// If the request has not initialized yet, the value is seen as `None`
+    /// inside the [`Extension::request`], [`Extension::subscribe`], and
+    /// [`Extension::prepare_request`] hooks.
     pub query_data: Option<&'a Data>,
 }
 
@@ -70,6 +81,16 @@ impl<'a> ExtensionContext<'a> {
             .registry
             .stringify_exec_doc(variables, doc)
             .unwrap_or_default()
+    }
+
+    /// Returns SDL(Schema Definition Language) of this schema.
+    pub fn sdl(&self) -> String {
+        self.schema_env.registry.export_sdl(Default::default())
+    }
+
+    /// Returns SDL(Schema Definition Language) of this schema with options.
+    pub fn sdl_with_options(&self, options: SDLExportOptions) -> String {
+        self.schema_env.registry.export_sdl(options)
     }
 
     /// Gets the global data defined in the `Context` or `Schema`.
@@ -152,7 +173,7 @@ pub struct NextRequest<'a> {
     request_fut: RequestFut<'a>,
 }
 
-impl<'a> NextRequest<'a> {
+impl NextRequest<'_> {
     /// Call the [Extension::request] function of next extension.
     pub async fn run(self, ctx: &ExtensionContext<'_>) -> Response {
         if let Some((first, next)) = self.chain.split_first() {
@@ -176,7 +197,7 @@ pub struct NextSubscribe<'a> {
     chain: &'a [Arc<dyn Extension>],
 }
 
-impl<'a> NextSubscribe<'a> {
+impl NextSubscribe<'_> {
     /// Call the [Extension::subscribe] function of next extension.
     pub fn run<'s>(
         self,
@@ -196,7 +217,7 @@ pub struct NextPrepareRequest<'a> {
     chain: &'a [Arc<dyn Extension>],
 }
 
-impl<'a> NextPrepareRequest<'a> {
+impl NextPrepareRequest<'_> {
     /// Call the [Extension::prepare_request] function of next extension.
     pub async fn run(self, ctx: &ExtensionContext<'_>, request: Request) -> ServerResult<Request> {
         if let Some((first, next)) = self.chain.split_first() {
@@ -215,7 +236,7 @@ pub struct NextParseQuery<'a> {
     parse_query_fut: ParseFut<'a>,
 }
 
-impl<'a> NextParseQuery<'a> {
+impl NextParseQuery<'_> {
     /// Call the [Extension::parse_query] function of next extension.
     pub async fn run(
         self,
@@ -247,7 +268,7 @@ pub struct NextValidation<'a> {
     validation_fut: ValidationFut<'a>,
 }
 
-impl<'a> NextValidation<'a> {
+impl NextValidation<'_> {
     /// Call the [Extension::validation] function of next extension.
     pub async fn run(
         self,
@@ -276,7 +297,7 @@ pub struct NextExecute<'a> {
     execute_data: Option<Data>,
 }
 
-impl<'a> NextExecute<'a> {
+impl NextExecute<'_> {
     async fn internal_run(
         self,
         ctx: &ExtensionContext<'_>,
@@ -333,7 +354,7 @@ pub struct NextResolve<'a> {
     resolve_fut: ResolveFut<'a>,
 }
 
-impl<'a> NextResolve<'a> {
+impl NextResolve<'_> {
     /// Call the [Extension::resolve] function of next extension.
     pub async fn run(
         self,
@@ -469,7 +490,7 @@ impl Extensions {
     }
 
     #[inline]
-    fn create_context(&self) -> ExtensionContext {
+    fn create_context(&self) -> ExtensionContext<'_> {
         ExtensionContext {
             schema_env: &self.schema_env,
             session_data: &self.session_data,

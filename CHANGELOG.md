@@ -4,6 +4,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# Unreleased
+
+- update MSRV to `1.89.0`
+- Fix DataLoader with tracing [#1749](https://github.com/async-graphql/async-graphql/pull/1749)
+- Fix clippy lints [#1770](https://github.com/async-graphql/async-graphql/pull/1770)
+- Upgrade hashbrown to 0.16 [#1771](https://github.com/async-graphql/async-graphql/pull/1771)
+- Upgrade zxcvbn to 3.1 [#1771](https://github.com/async-graphql/async-graphql/pull/1771)
+- Upgrade lru to 0.16 [#1771](https://github.com/async-graphql/async-graphql/pull/1771)
+- Upgrade handlebars to 6.3 [#1771](https://github.com/async-graphql/async-graphql/pull/1771)
+- Upgrade schemars to 1.2 [#1771](https://github.com/async-graphql/async-graphql/pull/1771)
+- Upgrade darling to 0.23
+- Upgrade strum to 0.27
+- Upgrade criterion to 0.8
+- Move from Inflector to heck (since Inflector is archived) [#1732](https://github.com/async-graphql/async-graphql/pull/1732)
+
+# [7.0.17] 2025-05-24
+
+- update MSRV to `1.86.0`
+- Allow exporting SDL with spaces [#1688](https://github.com/async-graphql/async-graphql/pull/1688)
+- Update GraphiQLSource to use React v18 [#1705](https://github.com/async-graphql/async-graphql/pull/1705)
+- fix: generate description of directives. [#1681](https://github.com/async-graphql/async-graphql/pull/1681)
+- feat: add @requiresScopes support [#1695](https://github.com/async-graphql/async-graphql/pull/1695)
+- chore: fix clippy and fmt errors [#1713](https://github.com/async-graphql/async-graphql/pull/1713)
+- use preferred mime-type [#1714](https://github.com/async-graphql/async-graphql/pull/1714)
+- Add GraphiQLSource version [#1704](https://github.com/async-graphql/async-graphql/pull/1704)
+
+# [7.0.16] 2025-03-20
+
+- dynamic: fixed `__typename` always returned `null` when introspection was disabled.
+- update MSRV to `1.83.0`
+
+# [7.0.15] 2025-02-03
+
+- feat: Add `custom-error-conversion` feature [#1631](https://github.com/async-graphql/async-graphql/pull/1631)
+- Update graphql annotation directive property to support paths [#1663](https://github.com/async-graphql/async-graphql/pull/1663)
+
+# [7.0.14] 2025-01-22
+
+- Update error messages for character length validation [#1657](https://github.com/async-graphql/async-graphql/pull/1657)
+- Upgrade to axum v0.8 [#1653](https://github.com/async-graphql/async-graphql/pull/1653)
+- Fix position calculator for unicode symbols [#1648](https://github.com/async-graphql/async-graphql/pull/1648)
+
+# [7.0.13] 2024-12-10
+
+- add support introspection inputValueDeprecation [#1621](https://github.com/async-graphql/async-graphql/issues/1621)
+
+# [7.0.12] 2024-12-08
+
+- update MSRV to `1.83.0`
+- Add specified complexity for fields in `SimpleObject`.
+- feat: expose SDL export utilities in ExtensionContext [#1606](https://github.com/async-graphql/async-graphql/pull/1606)
+- feat(dynamic-schema): specify type directives in schema [#1607](https://github.com/async-graphql/async-graphql/pull/1607)
+- Make http2 optional for actix [#1612](https://github.com/async-graphql/async-graphql/pull/1612)
+- chore: use std OnceLock instead LazyLock [#1613](https://github.com/async-graphql/async-graphql/pull/1613)
+- Add UUID validator [#1588](https://github.com/async-graphql/async-graphql/pull/1588)
+- Update secrecy and support new types [#1627](https://github.com/async-graphql/async-graphql/pull/1627)
+- fix [#1626](https://github.com/async-graphql/async-graphql/issues/1626)
+- Allow non-native concrete types in generic structs deriving SimpleObject + InputObject [#1629](https://github.com/async-graphql/async-graphql/pull/1629)
+- chore: update opentelemetry to 0.27 [#1614](https://github.com/async-graphql/async-graphql/pull/1614)
+- connection: Allow 'first' and 'last' parameters to exist at the same time [#1602](https://github.com/async-graphql/async-graphql/pull/1602)
+- feat(dynamic-schema): specify type directives in schema [#1607](https://github.com/async-graphql/async-graphql/pull/1607)
+- Make boxed_any and borrowed_any for FieldValue work with trait objects again [#1636](https://github.com/async-graphql/async-graphql/pull/1636)
+- Add new altair option [#1642](https://github.com/async-graphql/async-graphql/pull/1642)
+- Fix Clippy for latest stable [#1639](https://github.com/async-graphql/async-graphql/pull/1639)
+- Add `boxed-trait` feature [#1641](https://github.com/async-graphql/async-graphql/pull/1641)
+- Support directive in complex object [#1644](https://github.com/async-graphql/async-graphql/pull/1644)
+
+# [7.0.11] 2024-09-26
+
+- fix [#1598](https://github.com/async-graphql/async-graphql/issues/1598)
+
+# [7.0.10] 2024-09-24
+
+- add `SchemeBuilder.limit_directives` method to set the maximum number of directives on a single field.
+- remove needless ?Sized [#1593](https://github.com/async-graphql/async-graphql/pull/1593)
+- fix: generate each variant description correctly. [#1589](https://github.com/async-graphql/async-graphql/pull/1589)
+- Make `From<T>` for [Error] set source [#1561](https://github.com/async-graphql/async-graphql/pull/1561)
+- feat(graphiql): add support for WS connection params [#1597](https://github.com/async-graphql/async-graphql/pull/1597)
+
 # [7.0.9] 2024-09-02
 
 - add `on_ping` callback to `WebSocket`
@@ -57,7 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # [7.0.2] 2024-02-18
 
-- Fix `#[derive(OneofObject)]` rejecting enums where the type comes from a macro subsitution [#1473](https://github.com/async-graphql/async-graphql/pull/1473)
+- Fix `#[derive(OneofObject)]` rejecting enums where the type comes from a macro substitution [#1473](https://github.com/async-graphql/async-graphql/pull/1473)
 - Optimize object proc-macro codegen [#1470](https://github.com/async-graphql/async-graphql/pull/1470)
 - Use `impl Future` instead of `async-trait` in most traits. [#1468](https://github.com/async-graphql/async-graphql/pull/1468)
 - Upgrade `base64` to `0.21` [#1466](https://github.com/async-graphql/async-graphql/pull/1466)
@@ -129,7 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # [6.0.1] 2023-08-02
 
-- dynamic: remove `TypeRefInnner`
+- dynamic: remove `TypeRefInner`
 - update MSRV to `1.67.0`
 
 # [6.0.0] 2023-07-29
@@ -214,7 +293,7 @@ pub fn lowercase() -> impl CustomDirective {
 - dynamic schema: add boxed_any function [#1179](https://github.com/async-graphql/async-graphql/pull/1179)
 - Improve GraphiQL v2 [#1182](https://github.com/async-graphql/async-graphql/pull/1182)
 - Fix: __Type.oneOf to __Type.isOneOf [#1188](https://github.com/async-graphql/async-graphql/pull/1188)
-- Implemente From<ID> for ConstValue [#1169](https://github.com/async-graphql/async-graphql/pull/1169)
+- Implement From<ID> for ConstValue [#1169](https://github.com/async-graphql/async-graphql/pull/1169)
 - Fixes [#1192](https://github.com/async-graphql/async-graphql/issues/1192)
 
 # [5.0.4] 2022-12-17
@@ -357,7 +436,7 @@ pub fn lowercase() -> impl CustomDirective {
 # [4.0.3] 2022-6-20
 
 - Custom error type in axum request extractor [#945](https://github.com/async-graphql/async-graphql/pull/945)
-- Add nodes exposure on `ConectionType` so nesting through edges isn't always needed. [#952](https://github.com/async-graphql/async-graphql/pull/952)
+- Add nodes exposure on `ConnectionType` so nesting through edges isn't always needed. [#952](https://github.com/async-graphql/async-graphql/pull/952)
 - Make email-validator optional [#950](https://github.com/async-graphql/async-graphql/pull/950)
 
 # [4.0.2] 2022-6-10
