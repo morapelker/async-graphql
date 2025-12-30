@@ -7,6 +7,7 @@ use futures_util::lock::Mutex;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use crate::ErrorExtensionValues;
 use crate::{
     Request, ServerError, ServerResult,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextPrepareRequest},
