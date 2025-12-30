@@ -1,18 +1,17 @@
 //! Apollo persisted queries extension.
 
-use std::{num::NonZeroUsize, sync::Arc};
-use std::collections::BTreeMap;
-use async_graphql_parser::types::ExecutableDocument;
-use futures_util::lock::Mutex;
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
-
-use crate::ErrorExtensionValues;
 use crate::{
     Request, ServerError, ServerResult,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextPrepareRequest},
     from_value,
 };
+use async_graphql::Value;
+use async_graphql_parser::types::ExecutableDocument;
+use futures_util::lock::Mutex;
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+use std::{num::NonZeroUsize, sync::Arc};
 
 #[derive(Deserialize)]
 struct PersistedQuery {
@@ -113,7 +112,10 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
                 } else {
                     let mut err = ServerError::new("PersistedQueryNotFound", None);
                     let mut extensions = ErrorExtensionValues::default();
-                    extensions.set("code".to_string(), ConstValue::String("PERSISTED_QUERY_NOT_FOUND".to_string()));
+                    extensions.set(
+                        "code".to_string(),
+                        ConstValue::String("PERSISTED_QUERY_NOT_FOUND".to_string()),
+                    );
                     err.extensions = Some(extensions);
                     Err(err)
                 }
