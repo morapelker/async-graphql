@@ -114,7 +114,7 @@ impl<T: CacheStorage> Extension for ApolloPersistedQueriesExtension<T> {
                     let mut extensions = ErrorExtensionValues::default();
                     extensions.set(
                         "code".to_string(),
-                        ConstValue::String("PERSISTED_QUERY_NOT_FOUND".to_string()),
+                        Value::String("PERSISTED_QUERY_NOT_FOUND".to_string()),
                     );
                     err.extensions = Some(extensions);
                     Err(err)
